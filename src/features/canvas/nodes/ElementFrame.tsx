@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { NodeResizer, type Node } from '@xyflow/react';
-import { ArrowUpRight, Settings2, Trash2 } from 'lucide-react';
+import { ArrowUpRight, Settings2 } from 'lucide-react';
 import { useProject } from '../../../app/ProjectContext';
 import type { CanvasElement, ElementLink } from '../../../domain/models';
 import { useCanvasSnap } from '../canvasSnapContext';
@@ -125,18 +125,6 @@ export function ElementFrame({
             title="Налаштувати"
           >
             <Settings2 size={12} />
-          </button>
-          <button
-            type="button"
-            className="sd-mini-btn sd-mini-btn--danger"
-            onClick={(e) => {
-              e.stopPropagation();
-              dispatch({ type: 'DELETE_ELEMENT', pageId, elementId: element.id });
-            }}
-            aria-label="Видалити елемент"
-            title="Видалити"
-          >
-            <Trash2 size={12} />
           </button>
         </div>
       </div>

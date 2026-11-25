@@ -232,6 +232,27 @@ export function ElementConfigPanel({ pageId, element, onClose }: ElementConfigPa
   const [linkPageId, setLinkPageId] = useState<string>(pages[0]?.id ?? pageId);
   const [linkElementId, setLinkElementId] = useState<string>('');
   const [linkLabel, setLinkLabel] = useState<string>('');
+  const [panelHeight, setPanelHeight] = useState<number>(520);
+  const panelRef = useRef<HTMLElement | null>(null);
+
+  const handleResizePanelStart = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const startY = e.clientY;
+    const startHeight = panelRef.current?.getBoundingClientRect().height ?? panelHeight;
+
+    const handleMove = (ev: PointerEvent) => {
+      const delta = ev.clientY - startY;
+      setPanelHeight(Math.max(240, Math.min(900, Math.round(startHeight + delta))));
+    };
+
+    const handleUp = () => {
+      window.removeEventListener('pointermove', handleMove);
+      window.removeEventListener('pointerup', handleUp);
+    };
+
+    window.addEventListener('pointermove', handleMove);
+    window.addEventListener('pointerup', handleUp);
+  };
 
   const selectedTargetPage = pages.find((p) => p.id === linkPageId) ?? pages[0];
   const currentLinks = element.links ?? [];
@@ -274,7 +295,12 @@ export function ElementConfigPanel({ pageId, element, onClose }: ElementConfigPa
   };
 
   return (
-    <aside className="config-panel nodrag nopan nowheel" aria-label="Налаштування елемента Canvas">
+    <aside
+      ref={panelRef}
+      className="config-panel nodrag nopan nowheel"
+      style={{ maxHeight: `min(${panelHeight}px, calc(100% - 64px))` }}
+      aria-label="Налаштування елемента Canvas"
+    >
       <div className="config-panel-header">
         <span>Налаштування елемента</span>
         <button type="button" className="icon-btn" onClick={onClose} aria-label="Закрити">
@@ -1051,6 +1077,14 @@ export function ElementConfigPanel({ pageId, element, onClose }: ElementConfigPa
           </div>
         </div>
       </div>
+      <div
+        className="config-panel-resizer"
+        role="separator"
+        aria-orientation="horizontal"
+        aria-label="Змінити висоту вікна властивостей"
+        title="Потягніть для зміни висоти вікна"
+        onPointerDown={handleResizePanelStart}
+      />
     </aside>
   );
 }
