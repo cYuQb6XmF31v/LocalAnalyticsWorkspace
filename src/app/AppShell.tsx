@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ChevronRight,
+  AlertTriangle,
   Database,
   FileDown,
+  FilePlus2,
   FileUp,
   FolderTree,
   HelpCircle,
+  Info,
   Layers,
   LayoutGrid,
   PanelLeftClose,
@@ -14,57 +16,144 @@ import {
   PanelRightOpen,
   ShieldCheck,
   Table2,
+  X,
 } from 'lucide-react';
+import { Modal } from '../components/Modal';
+import { CanvasWorkspace } from '../features/canvas/CanvasWorkspace';
+import { ProjectTree } from '../features/canvas/ProjectTree';
+import { TemplateChooserModal } from '../features/canvas/TemplateChooserModal';
+import { buildPagesFromTemplate, type CanvasTemplateId } from '../features/canvas/templates';
+import { HelpPage } from '../features/help/HelpPage';
+import {
+  buildExportFileName,
+  readTxtFromFileInput,
+  saveTxtFile,
+  stripTxtExtension,
+  tryOpenTxtWithFilePicker,
+} from '../features/project-file/fileAdapters';
+import { ImportPreviewModal } from '../features/project-file/ImportPreviewModal';
+import { parseTxtContent, type ParsedTxtResult } from '../features/project-file/txtParser';
+import { serializeProjectTxt } from '../features/project-file/txtSerializer';
+import { SourceDataGrid } from '../features/source-data/SourceDataGrid';
 import { uk } from '../i18n/uk';
+import { useProject } from './ProjectContext';
 import './AppShell.css';
 
 type MobilePane = 'navigator' | 'canvas' | 'sourceData';
+type ActiveView = 'workspace' | 'help';
+type ResizeTarget = 'nav' | 'source';
 
-const SOURCE_MIN_WIDTH = 260;
-const SOURCE_MAX_WIDTH = 620;
-const SOURCE_DEFAULT_WIDTH = 360;
+const NAV_MIN_WIDTH = 190;
+const NAV_MAX_WIDTH = 440;
+const NAV_DEFAULT_WIDTH = 248;
+
+const SOURCE_MIN_WIDTH = 280;
+const SOURCE_DEFAULT_WIDTH = 420;
+const MIN_CANVAS_STRIP = 80;
+
+interface PendingImport {
+  fileName: string;
+  parsed: ParsedTxtResult;
+}
 
 export function AppShell() {
+  const { state, dispatch, sessionNotice, dismissSessionNotice, resetSessionProject } =
+    useProject();
   const [isNavOpen, setIsNavOpen] = useState(true);
   const [isSourceOpen, setIsSourceOpen] = useState(true);
+  const [navWidth, setNavWidth] = useState(NAV_DEFAULT_WIDTH);
   const [sourceWidth, setSourceWidth] = useState(SOURCE_DEFAULT_WIDTH);
-  const [isResizing, setIsResizing] = useState(false);
+  const [resizingTarget, setResizingTarget] = useState<ResizeTarget | null>(null);
   const [mobilePane, setMobilePane] = useState<MobilePane>('canvas');
+  const [activeView, setActiveView] = useState<ActiveView>(() =>
+    typeof window !== 'undefined' && window.location.hash === '#help' ? 'help' : 'workspace',
+  );
 
-  const dragStartRef = useRef<{ startX: number; startWidth: number } | null>(null);
+  const [pendingImport, setPendingImport] = useState<PendingImport | null>(null);
+  const [isTemplateChooserOpen, setIsTemplateChooserOpen] = useState(false);
+  const [confirmNewOpen, setConfirmNewOpen] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const shellBodyRef = useRef<HTMLElement | null>(null);
+  const dragStartRef = useRef<{
+    target: ResizeTarget;
+    startX: number;
+    startWidth: number;
+  } | null>(null);
+
+  const { project, dirtySinceLastExport, needsLayoutChooser } = state;
+
+  useEffect(() => {
+    const syncFromHash = () => {
+      setActiveView(window.location.hash === '#help' ? 'help' : 'workspace');
+    };
+    window.addEventListener('hashchange', syncFromHash);
+    return () => window.removeEventListener('hashchange', syncFromHash);
+  }, []);
+
+  const navigateTo = useCallback((view: ActiveView) => {
+    setActiveView(view);
+    if (typeof window !== 'undefined') {
+      const nextHash = view === 'help' ? '#help' : '#workspace';
+      if (window.location.hash !== nextHash) {
+        window.history.replaceState(null, '', nextHash);
+      }
+    }
+  }, []);
+
+  const getMaxSourceWidth = useCallback(() => {
+    const totalWidth =
+      shellBodyRef.current?.clientWidth ??
+      (typeof window !== 'undefined' ? window.innerWidth : 1280);
+    const occupiedByNav = isNavOpen ? navWidth : 0;
+    return Math.max(SOURCE_MIN_WIDTH, totalWidth - occupiedByNav - MIN_CANVAS_STRIP);
+  }, [isNavOpen, navWidth]);
 
   const handleResizeStart = useCallback(
-    (event: React.PointerEvent<HTMLDivElement>) => {
+    (target: ResizeTarget) => (event: React.PointerEvent<HTMLDivElement>) => {
       event.preventDefault();
       dragStartRef.current = {
+        target,
         startX: event.clientX,
-        startWidth: sourceWidth,
+        startWidth: target === 'nav' ? navWidth : sourceWidth,
       };
-      setIsResizing(true);
+      setResizingTarget(target);
     },
-    [sourceWidth],
+    [navWidth, sourceWidth],
   );
 
   useEffect(() => {
-    if (!isResizing) {
+    if (!resizingTarget) {
       return;
     }
 
     const handlePointerMove = (event: PointerEvent) => {
-      if (!dragStartRef.current) {
+      const drag = dragStartRef.current;
+      if (!drag) {
         return;
       }
-      const delta = dragStartRef.current.startX - event.clientX;
-      const nextWidth = Math.min(
-        SOURCE_MAX_WIDTH,
-        Math.max(SOURCE_MIN_WIDTH, dragStartRef.current.startWidth + delta),
-      );
-      setSourceWidth(nextWidth);
+      if (drag.target === 'nav') {
+        const delta = event.clientX - drag.startX;
+        const nextWidth = Math.min(
+          NAV_MAX_WIDTH,
+          Math.max(NAV_MIN_WIDTH, drag.startWidth + delta),
+        );
+        setNavWidth(nextWidth);
+      } else {
+        const delta = drag.startX - event.clientX;
+        const maxAllowed = getMaxSourceWidth();
+        const nextWidth = Math.min(
+          maxAllowed,
+          Math.max(SOURCE_MIN_WIDTH, drag.startWidth + delta),
+        );
+        setSourceWidth(nextWidth);
+      }
     };
 
     const handlePointerUp = () => {
       dragStartRef.current = null;
-      setIsResizing(false);
+      setResizingTarget(null);
     };
 
     window.addEventListener('pointermove', handlePointerMove);
@@ -76,20 +165,146 @@ export function AppShell() {
       window.removeEventListener('pointerup', handlePointerUp);
       window.removeEventListener('pointercancel', handlePointerUp);
     };
-  }, [isResizing]);
+  }, [resizingTarget, getMaxSourceWidth]);
 
-  const handleResizeKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    if (event.key === 'ArrowLeft') {
+  // Clamp source width cleanly if the viewport shrinks
+  useEffect(() => {
+    const handleWindowResize = () => {
+      const maxAllowed = getMaxSourceWidth();
+      setSourceWidth((prev) => (prev > maxAllowed ? maxAllowed : prev));
+    };
+    window.addEventListener('resize', handleWindowResize);
+    return () => window.removeEventListener('resize', handleWindowResize);
+  }, [getMaxSourceWidth]);
+
+  const handleNavResizeKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'ArrowRight') {
       event.preventDefault();
-      setSourceWidth((prev) => Math.min(SOURCE_MAX_WIDTH, prev + 24));
-    } else if (event.key === 'ArrowRight') {
+      setNavWidth((prev) => Math.min(NAV_MAX_WIDTH, prev + 24));
+    } else if (event.key === 'ArrowLeft') {
       event.preventDefault();
-      setSourceWidth((prev) => Math.max(SOURCE_MIN_WIDTH, prev - 24));
+      setNavWidth((prev) => Math.max(NAV_MIN_WIDTH, prev - 24));
     }
   };
 
+  const handleSourceResizeKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    const maxAllowed = getMaxSourceWidth();
+    if (event.key === 'ArrowLeft') {
+      event.preventDefault();
+      setSourceWidth((prev) => Math.min(maxAllowed, prev + 32));
+    } else if (event.key === 'ArrowRight') {
+      event.preventDefault();
+      setSourceWidth((prev) => Math.max(SOURCE_MIN_WIDTH, prev - 32));
+    }
+  };
+
+  const openImportPreviewFromRaw = (fileName: string, content: string) => {
+    setActionError(null);
+    const parsed = parseTxtContent(content, stripTxtExtension(fileName));
+    setPendingImport({ fileName, parsed });
+  };
+
+  const handleImportClick = async () => {
+    setActionError(null);
+    const pickerResult = await tryOpenTxtWithFilePicker();
+    if (pickerResult === null) {
+      fileInputRef.current?.click();
+      return;
+    }
+    if (pickerResult.status === 'cancelled') {
+      return;
+    }
+    if (pickerResult.status === 'error') {
+      setActionError(pickerResult.message);
+      return;
+    }
+    openImportPreviewFromRaw(pickerResult.file.fileName, pickerResult.file.content);
+  };
+
+  const handleFileInputChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) {
+      return;
+    }
+    const readResult = await readTxtFromFileInput(file);
+    if (readResult.status === 'error') {
+      setActionError(readResult.message);
+      return;
+    }
+    if (readResult.status === 'picked') {
+      openImportPreviewFromRaw(readResult.file.fileName, readResult.file.content);
+    }
+  };
+
+  const handleConfirmImport = () => {
+    if (!pendingImport || pendingImport.parsed.errors.length > 0) {
+      return;
+    }
+    if (pendingImport.parsed.kind === 'project') {
+      dispatch({ type: 'REPLACE_PROJECT', project: pendingImport.parsed.project });
+    } else {
+      dispatch({
+        type: 'REPLACE_DATASET',
+        dataset: pendingImport.parsed.dataset,
+        openLayoutChooser: true,
+      });
+    }
+    setPendingImport(null);
+    setIsSourceOpen(true);
+    navigateTo('workspace');
+  };
+
+  const handleExportTxt = async () => {
+    setActionError(null);
+    const txtContent = serializeProjectTxt(project);
+    const fileName = buildExportFileName(project.name);
+    const result = await saveTxtFile(fileName, txtContent);
+    if (result.status === 'error') {
+      setActionError(result.message);
+      return;
+    }
+    if (result.status === 'saved') {
+      dispatch({ type: 'MARK_EXPORTED' });
+    }
+  };
+
+  const handleNewProjectClick = () => {
+    const hasData =
+      dirtySinceLastExport ||
+      project.primaryDataset.columns.length > 0 ||
+      project.primaryDataset.rows.length > 0;
+    if (hasData) {
+      setConfirmNewOpen(true);
+    } else {
+      resetSessionProject();
+      navigateTo('workspace');
+    }
+  };
+
+  const handleSelectTemplate = (templateId: CanvasTemplateId) => {
+    const pages = buildPagesFromTemplate(templateId, project.primaryDataset);
+    dispatch({
+      type: 'APPLY_CANVAS_PAGES',
+      pages,
+      activePageId: pages[0]?.id,
+    });
+    setIsTemplateChooserOpen(false);
+    navigateTo('workspace');
+  };
+
+  const showTemplatesModal = isTemplateChooserOpen || needsLayoutChooser;
+
   return (
     <div className="shell">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".txt,text/plain"
+        hidden
+        onChange={handleFileInputChange}
+      />
+
       <header className="shell-header">
         <div className="shell-header-left">
           <button
@@ -111,8 +326,37 @@ export function AppShell() {
           </div>
 
           <span className="shell-divider desktop-only" aria-hidden="true" />
-          <span className="shell-project-name desktop-only">{uk.app.projectPlaceholder}</span>
+
+          <input
+            type="text"
+            className="shell-project-input desktop-only"
+            aria-label={uk.app.renameProjectLabel}
+            defaultValue={project.name}
+            key={`${project.id}-${project.name}`}
+            onBlur={(e) => {
+              const next = e.target.value.trim();
+              if (next && next !== project.name) {
+                dispatch({ type: 'RENAME_PROJECT', name: next });
+              } else {
+                e.target.value = project.name;
+              }
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.currentTarget.blur();
+              } else if (e.key === 'Escape') {
+                e.currentTarget.value = project.name;
+                e.currentTarget.blur();
+              }
+            }}
+          />
+
           <span className="shell-badge desktop-only">{uk.app.stageBadge}</span>
+          {dirtySinceLastExport && (
+            <span className="shell-badge shell-badge--warning desktop-only">
+              {uk.app.unsavedChanges}
+            </span>
+          )}
         </div>
 
         <div className="shell-header-right">
@@ -123,32 +367,44 @@ export function AppShell() {
 
           <button
             type="button"
-            className="icon-btn icon-btn--outlined desktop-only"
-            disabled
-            title={uk.header.plannedHint}
+            className="icon-btn icon-btn--outlined"
+            onClick={handleNewProjectClick}
+            title={uk.header.newProject}
+          >
+            <FilePlus2 size={14} />
+            <span className="desktop-only">{uk.header.newProject}</span>
+          </button>
+
+          <button
+            type="button"
+            className="icon-btn icon-btn--outlined"
+            onClick={handleImportClick}
+            title={uk.header.importTxt}
           >
             <FileUp size={14} />
-            <span>{uk.header.importSoon}</span>
+            <span>{uk.header.importTxt}</span>
           </button>
 
           <button
             type="button"
-            className="icon-btn icon-btn--outlined desktop-only"
-            disabled
-            title={uk.header.plannedHint}
+            className="icon-btn icon-btn--outlined"
+            onClick={handleExportTxt}
+            title={uk.header.exportTxt}
           >
             <FileDown size={14} />
-            <span>{uk.header.exportSoon}</span>
+            <span>{uk.header.exportTxt}</span>
           </button>
 
           <button
             type="button"
-            className="icon-btn icon-btn--outlined desktop-only"
-            disabled
-            title={uk.header.plannedHint}
+            className={`icon-btn icon-btn--outlined ${
+              activeView === 'help' ? 'icon-btn--active' : ''
+            }`}
+            onClick={() => navigateTo(activeView === 'help' ? 'workspace' : 'help')}
+            title={uk.header.help}
           >
             <HelpCircle size={14} />
-            <span>{uk.header.helpSoon}</span>
+            <span className="desktop-only">{uk.header.help}</span>
           </button>
 
           <button
@@ -164,157 +420,226 @@ export function AppShell() {
         </div>
       </header>
 
-      <nav className="mobile-tabs" aria-label="Перемикач робочих панелей">
-        <button
-          type="button"
-          className={`mobile-tab ${mobilePane === 'navigator' ? 'mobile-tab--active' : ''}`}
-          onClick={() => setMobilePane('navigator')}
-        >
-          <FolderTree size={14} />
-          <span>{uk.tabs.navigator}</span>
-        </button>
-        <button
-          type="button"
-          className={`mobile-tab ${mobilePane === 'canvas' ? 'mobile-tab--active' : ''}`}
-          onClick={() => setMobilePane('canvas')}
-        >
-          <LayoutGrid size={14} />
-          <span>{uk.tabs.canvas}</span>
-        </button>
-        <button
-          type="button"
-          className={`mobile-tab ${mobilePane === 'sourceData' ? 'mobile-tab--active' : ''}`}
-          onClick={() => setMobilePane('sourceData')}
-        >
-          <Table2 size={14} />
-          <span>{uk.tabs.sourceData}</span>
-        </button>
-      </nav>
-
-      <main className="shell-body">
-        {isNavOpen && (
-          <aside
-            className={`pane-nav ${mobilePane !== 'navigator' ? 'pane--hidden-mobile' : ''}`}
-            aria-label={uk.navigator.title}
+      {actionError && (
+        <div role="alert" className="session-banner session-banner--danger">
+          <span className="session-banner-content">
+            <AlertTriangle size={14} aria-hidden="true" />
+            <span>{actionError}</span>
+          </span>
+          <button
+            type="button"
+            className="icon-btn"
+            onClick={() => setActionError(null)}
+            aria-label={uk.session.dismissNotice}
           >
-            <div className="pane-header">
-              <span className="pane-header-title">
-                <FolderTree size={14} />
-                <span>{uk.navigator.title}</span>
-              </span>
+            <X size={14} />
+          </button>
+        </div>
+      )}
+
+      {sessionNotice && (
+        <div
+          role="status"
+          className={`session-banner ${
+            sessionNotice.kind === 'warning' ? 'session-banner--warning' : 'session-banner--info'
+          }`}
+        >
+          <span className="session-banner-content">
+            {sessionNotice.kind === 'warning' ? (
+              <AlertTriangle size={14} aria-hidden="true" />
+            ) : (
+              <Info size={14} aria-hidden="true" />
+            )}
+            <span>{sessionNotice.message}</span>
+          </span>
+          <button
+            type="button"
+            className="icon-btn"
+            onClick={dismissSessionNotice}
+            aria-label={uk.session.dismissNotice}
+            title={uk.session.dismissNotice}
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
+
+      {activeView === 'help' ? (
+        <main className="shell-body">
+          <HelpPage onBackToWorkspace={() => navigateTo('workspace')} />
+        </main>
+      ) : (
+        <>
+          <nav className="mobile-tabs" aria-label="Перемикач робочих панелей">
+            <button
+              type="button"
+              className={`mobile-tab ${mobilePane === 'navigator' ? 'mobile-tab--active' : ''}`}
+              onClick={() => setMobilePane('navigator')}
+            >
+              <FolderTree size={14} />
+              <span>{uk.tabs.navigator}</span>
+            </button>
+            <button
+              type="button"
+              className={`mobile-tab ${mobilePane === 'canvas' ? 'mobile-tab--active' : ''}`}
+              onClick={() => setMobilePane('canvas')}
+            >
+              <LayoutGrid size={14} />
+              <span>{uk.tabs.canvas}</span>
+            </button>
+            <button
+              type="button"
+              className={`mobile-tab ${mobilePane === 'sourceData' ? 'mobile-tab--active' : ''}`}
+              onClick={() => setMobilePane('sourceData')}
+            >
+              <Table2 size={14} />
+              <span>{uk.tabs.sourceData}</span>
+            </button>
+          </nav>
+
+          <main ref={shellBodyRef} className="shell-body">
+            {isNavOpen && (
+              <>
+                <aside
+                  className={`pane-nav ${mobilePane !== 'navigator' ? 'pane--hidden-mobile' : ''}`}
+                  style={{ width: `${navWidth}px` }}
+                  aria-label={uk.navigator.title}
+                >
+                  <div className="pane-header">
+                    <span className="pane-header-title">
+                      <FolderTree size={14} />
+                      <span>{uk.navigator.title}</span>
+                    </span>
+                  </div>
+
+                  <ProjectTree
+                    onOpenHelp={() => navigateTo('help')}
+                    onNavigateToCanvas={() => {
+                      navigateTo('workspace');
+                      setMobilePane('canvas');
+                    }}
+                    isHelpActive={false}
+                  />
+                </aside>
+
+                <div
+                  role="separator"
+                  aria-orientation="vertical"
+                  aria-label={uk.navigator.resizeHandle}
+                  aria-valuemin={NAV_MIN_WIDTH}
+                  aria-valuemax={NAV_MAX_WIDTH}
+                  aria-valuenow={navWidth}
+                  tabIndex={0}
+                  className={`resize-handle desktop-only ${
+                    resizingTarget === 'nav' ? 'resize-handle--active' : ''
+                  }`}
+                  onPointerDown={handleResizeStart('nav')}
+                  onKeyDown={handleNavResizeKeyDown}
+                />
+              </>
+            )}
+
+            <section
+              className={`pane-canvas ${mobilePane !== 'canvas' ? 'pane--hidden-mobile' : ''}`}
+              aria-label={uk.canvas.title}
+            >
+              <CanvasWorkspace onOpenTemplates={() => setIsTemplateChooserOpen(true)} />
+            </section>
+
+            {isSourceOpen && (
+              <>
+                <div
+                  role="separator"
+                  aria-orientation="vertical"
+                  aria-label={uk.sourceData.resizeHandle}
+                  aria-valuemin={SOURCE_MIN_WIDTH}
+                  aria-valuemax={getMaxSourceWidth()}
+                  aria-valuenow={sourceWidth}
+                  tabIndex={0}
+                  className={`resize-handle desktop-only ${
+                    resizingTarget === 'source' ? 'resize-handle--active' : ''
+                  }`}
+                  onPointerDown={handleResizeStart('source')}
+                  onKeyDown={handleSourceResizeKeyDown}
+                />
+
+                <aside
+                  className={`pane-source ${
+                    mobilePane !== 'sourceData' ? 'pane--hidden-mobile' : ''
+                  }`}
+                  style={{ width: `${sourceWidth}px` }}
+                  aria-label={uk.sourceData.title}
+                >
+                  <div className="pane-header">
+                    <span className="pane-header-title">
+                      <Database size={14} />
+                      <span>{uk.sourceData.title}</span>
+                      <span className="shell-badge">{uk.sourceData.badgePrimary}</span>
+                    </span>
+                  </div>
+
+                  <div className="pane-source-body">
+                    <SourceDataGrid onRequestImportTxt={handleImportClick} />
+                  </div>
+                </aside>
+              </>
+            )}
+          </main>
+        </>
+      )}
+
+      {pendingImport && (
+        <ImportPreviewModal
+          fileName={pendingImport.fileName}
+          parsed={pendingImport.parsed}
+          onCancel={() => setPendingImport(null)}
+          onConfirm={handleConfirmImport}
+        />
+      )}
+
+      {showTemplatesModal && (
+        <TemplateChooserModal
+          onSelect={handleSelectTemplate}
+          onClose={() => {
+            setIsTemplateChooserOpen(false);
+            if (needsLayoutChooser) {
+              dispatch({ type: 'DISMISS_LAYOUT_CHOOSER' });
+            }
+          }}
+        />
+      )}
+
+      {confirmNewOpen && (
+        <Modal
+          title={uk.header.confirmNewProjectTitle}
+          onClose={() => setConfirmNewOpen(false)}
+          narrow
+          footer={
+            <>
               <button
                 type="button"
-                className="icon-btn desktop-only"
-                onClick={() => setIsNavOpen(false)}
-                aria-label={uk.navigator.collapse}
-                title={uk.navigator.collapse}
+                className="btn btn--secondary"
+                onClick={() => setConfirmNewOpen(false)}
               >
-                <PanelLeftClose size={14} />
+                {uk.header.cancel}
               </button>
-            </div>
-
-            <div className="pane-content">
-              <div className="tree-preview" aria-label="Заглушка дерева проєкту">
-                <div className="tree-row">
-                  <ChevronRight size={13} />
-                  <span>{uk.navigator.sampleProject}</span>
-                </div>
-                <div className="tree-row tree-row--nested tree-row--active">
-                  <LayoutGrid size={13} />
-                  <span>{uk.navigator.samplePage}</span>
-                </div>
-              </div>
-
-              <div className="placeholder-card placeholder-card--compact">
-                <span className="placeholder-icon" aria-hidden="true">
-                  <FolderTree size={15} />
-                </span>
-                <h2 className="placeholder-title">{uk.navigator.placeholderTitle}</h2>
-                <p className="placeholder-text">{uk.navigator.placeholderText}</p>
-              </div>
-            </div>
-          </aside>
-        )}
-
-        <section
-          className={`pane-canvas ${mobilePane !== 'canvas' ? 'pane--hidden-mobile' : ''}`}
-          aria-label={uk.canvas.title}
+              <button
+                type="button"
+                className="btn btn--danger"
+                onClick={() => {
+                  resetSessionProject();
+                  setConfirmNewOpen(false);
+                  navigateTo('workspace');
+                }}
+              >
+                {uk.header.confirmNewProjectAction}
+              </button>
+            </>
+          }
         >
-          <div className="canvas-subbar">
-            <span className="pane-header-title">
-              <LayoutGrid size={14} />
-              <span>{uk.canvas.title}</span>
-            </span>
-            <span className="mono-chip">{uk.canvas.toolbarPlaceholder}</span>
-          </div>
-
-          <div className="canvas-stage">
-            <div className="placeholder-card">
-              <span className="placeholder-icon" aria-hidden="true">
-                <LayoutGrid size={16} />
-              </span>
-              <h1 className="placeholder-title">{uk.canvas.placeholderTitle}</h1>
-              <p className="placeholder-text">{uk.canvas.placeholderText}</p>
-              <p className="placeholder-hint">{uk.canvas.hint}</p>
-            </div>
-          </div>
-        </section>
-
-        {isSourceOpen && (
-          <>
-            <div
-              role="separator"
-              aria-orientation="vertical"
-              aria-label={uk.sourceData.resizeHandle}
-              aria-valuemin={SOURCE_MIN_WIDTH}
-              aria-valuemax={SOURCE_MAX_WIDTH}
-              aria-valuenow={sourceWidth}
-              tabIndex={0}
-              className={`resize-handle desktop-only ${isResizing ? 'resize-handle--active' : ''}`}
-              onPointerDown={handleResizeStart}
-              onKeyDown={handleResizeKeyDown}
-            />
-
-            <aside
-              className={`pane-source ${mobilePane !== 'sourceData' ? 'pane--hidden-mobile' : ''}`}
-              style={{ width: `${sourceWidth}px` }}
-              aria-label={uk.sourceData.title}
-            >
-              <div className="pane-header">
-                <span className="pane-header-title">
-                  <Database size={14} />
-                  <span>{uk.sourceData.title}</span>
-                  <span className="shell-badge">{uk.sourceData.badgePrimary}</span>
-                </span>
-                <button
-                  type="button"
-                  className="icon-btn desktop-only"
-                  onClick={() => setIsSourceOpen(false)}
-                  aria-label={uk.sourceData.collapse}
-                  title={uk.sourceData.collapse}
-                >
-                  <PanelRightClose size={14} />
-                </button>
-              </div>
-
-              <div className="pane-content">
-                <div>
-                  <span className="mono-chip">{uk.sourceData.statsPlaceholder}</span>
-                </div>
-
-                <div className="placeholder-card placeholder-card--compact">
-                  <span className="placeholder-icon" aria-hidden="true">
-                    <Table2 size={15} />
-                  </span>
-                  <h2 className="placeholder-title">{uk.sourceData.placeholderTitle}</h2>
-                  <p className="placeholder-text">{uk.sourceData.placeholderText}</p>
-                  <p className="placeholder-hint">{uk.sourceData.hint}</p>
-                </div>
-              </div>
-            </aside>
-          </>
-        )}
-      </main>
+          <p className="placeholder-text">{uk.header.confirmNewProjectBody}</p>
+        </Modal>
+      )}
     </div>
   );
 }

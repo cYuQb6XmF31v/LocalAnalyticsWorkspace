@@ -65,12 +65,25 @@
   flex-shrink: 0;
 }
 
-.shell-project-name {
+.shell-project-input {
   font-size: var(--text-sm);
-  color: var(--text-secondary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  color: var(--text-primary);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 2px 6px;
+  width: 150px;
+  min-width: 80px;
+}
+
+.shell-project-input:hover {
+  border-color: var(--border-subtle);
+}
+
+.shell-project-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  background-color: var(--bg-surface);
 }
 
 .shell-badge {
@@ -92,6 +105,61 @@
   color: var(--text-secondary);
   background-color: var(--bg-surface);
   border-color: var(--border-subtle);
+}
+
+.shell-badge--warning {
+  color: var(--status-warning);
+  background-color: rgba(251, 191, 36, 0.12);
+  border-color: rgba(251, 191, 36, 0.35);
+}
+
+.session-banner {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: 6px var(--space-3);
+  font-size: var(--text-xs);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.session-banner--info {
+  background-color: var(--accent-muted);
+  color: var(--accent-text);
+}
+
+.session-banner--warning {
+  background-color: rgba(251, 191, 36, 0.12);
+  color: var(--status-warning);
+}
+
+.session-banner--danger {
+  background-color: rgba(248, 113, 113, 0.14);
+  color: var(--status-danger);
+}
+
+.pane-source-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.session-banner-content {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tree-row--btn {
+  width: 100%;
+  text-align: left;
+}
+
+.tree-row--btn:hover {
+  background-color: var(--bg-hover);
+  color: var(--text-primary);
 }
 
 .icon-btn {
@@ -168,7 +236,6 @@
 
 /* Left Navigator */
 .pane-nav {
-  width: var(--nav-width);
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -185,8 +252,6 @@
   display: flex;
   flex-direction: column;
   background-color: var(--canvas-bg);
-  background-image: radial-gradient(var(--canvas-dot) 1px, transparent 1px);
-  background-size: 20px 20px;
   position: relative;
 }
 

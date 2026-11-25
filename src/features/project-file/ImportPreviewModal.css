@@ -1,0 +1,115 @@
+.import-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--space-2);
+}
+
+.import-meta-card {
+  padding: var(--space-2) var(--space-3);
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.import-meta-label {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.import-meta-value {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.import-issues {
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.import-issues--error {
+  background-color: rgba(248, 113, 113, 0.1);
+  border: 1px solid rgba(248, 113, 113, 0.35);
+  color: var(--status-danger);
+}
+
+.import-issues--warning {
+  background-color: rgba(251, 191, 36, 0.1);
+  border: 1px solid rgba(251, 191, 36, 0.32);
+  color: var(--status-warning);
+}
+
+.import-issues-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.import-issues-list {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: var(--text-xs);
+  max-height: 140px;
+  overflow: auto;
+}
+
+.import-preview-wrap {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  overflow: auto;
+  max-height: 220px;
+  background-color: var(--bg-surface);
+}
+
+.import-preview-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-xs);
+}
+
+.import-preview-table th,
+.import-preview-table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border-subtle);
+  border-right: 1px solid var(--border-subtle);
+  text-align: left;
+  white-space: nowrap;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.import-preview-table th {
+  position: sticky;
+  top: 0;
+  background-color: var(--bg-elevated);
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.import-preview-type {
+  font-family: var(--font-mono);
+  font-weight: 400;
+  color: var(--text-muted);
+  margin-left: 4px;
+}
+
+.import-note {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}

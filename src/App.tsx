@@ -1,5 +1,10 @@
 import { AppShell } from './app/AppShell';
+import { ProjectProvider } from './app/ProjectContext';
 
 export function App() {
-  return <AppShell />;
+  return (
+    <ProjectProvider>
+      <AppShell />
+    </ProjectProvider>
+  );
 }
