@@ -7,6 +7,7 @@ import {
   ReactFlow,
   ReactFlowProvider,
   useReactFlow,
+  ViewportPortal,
   type NodeTypes,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
@@ -21,6 +22,7 @@ import {
   Hash,
   LayoutTemplate,
   LineChart,
+  Magnet,
   Maximize2,
   PieChart,
   RotateCcw,
@@ -75,6 +77,144 @@ type ContextMenuState =
       screenY: number;
       element: CanvasElement;
     };
+
+interface SnapGuideLine {
+  orientation: 'vertical' | 'horizontal';
+  pos: number;
+  start: number;
+  end: number;
+  label: string;
+}
+
+interface SnapResult {
+  snappedPosition: Position;
+  guides: SnapGuideLine[];
+  relativeLabel: string | null;
+  relativePos: Position | null;
+}
+
+const SNAP_THRESHOLD = 8;
+
+function computeSnapAndGuides(
+  draggedId: string,
+  rawPos: Position,
+  draggedSize: { width: number; height: number },
+  otherNodes: CanvasFlowNode[],
+): SnapResult {
+  const w = draggedSize.width;
+  const h = draggedSize.height;
+
+  const xAnchors = [
+    { offset: 0, value: rawPos.x },
+    { offset: w / 2, value: rawPos.x + w / 2 },
+    { offset: w, value: rawPos.x + w },
+  ];
+  const yAnchors = [
+    { offset: 0, value: rawPos.y },
+    { offset: h / 2, value: rawPos.y + h / 2 },
+    { offset: h, value: rawPos.y + h },
+  ];
+
+  let bestDx = SNAP_THRESHOLD + 1;
+  let bestSnappedX = rawPos.x;
+  let matchedXTarget: { pos: number; otherTop: number; otherBottom: number; otherLeft: number } | null = null;
+
+  let bestDy = SNAP_THRESHOLD + 1;
+  let bestSnappedY = rawPos.y;
+  let matchedYTarget: { pos: number; otherLeft: number; otherRight: number; otherTop: number } | null = null;
+
+  let nearestNode: { node: CanvasFlowNode; dist: number; ow: number; oh: number } | null = null;
+
+  for (const other of otherNodes) {
+    if (other.id === draggedId) {
+      continue;
+    }
+    const ow = Number(other.width ?? other.style?.width ?? 200);
+    const oh = Number(other.height ?? other.style?.height ?? 140);
+    const ox = other.position.x;
+    const oy = other.position.y;
+
+    const dist = Math.hypot(ox + ow / 2 - (rawPos.x + w / 2), oy + oh / 2 - (rawPos.y + h / 2));
+    if (!nearestNode || dist < nearestNode.dist) {
+      nearestNode = { node: other, dist, ow, oh };
+    }
+
+    const otherXs = [ox, ox + ow / 2, ox + ow];
+    for (const anchor of xAnchors) {
+      for (const tx of otherXs) {
+        const diff = Math.abs(anchor.value - tx);
+        if (diff < bestDx) {
+          bestDx = diff;
+          bestSnappedX = tx - anchor.offset;
+          matchedXTarget = { pos: tx, otherTop: oy, otherBottom: oy + oh, otherLeft: ox };
+        }
+      }
+    }
+
+    const otherYs = [oy, oy + oh / 2, oy + oh];
+    for (const anchor of yAnchors) {
+      for (const ty of otherYs) {
+        const diff = Math.abs(anchor.value - ty);
+        if (diff < bestDy) {
+          bestDy = diff;
+          bestSnappedY = ty - anchor.offset;
+          matchedYTarget = { pos: ty, otherLeft: ox, otherRight: ox + ow, otherTop: oy };
+        }
+      }
+    }
+  }
+
+  const finalX = bestDx <= SNAP_THRESHOLD ? Math.round(bestSnappedX) : Math.round(rawPos.x);
+  const finalY = bestDy <= SNAP_THRESHOLD ? Math.round(bestSnappedY) : Math.round(rawPos.y);
+
+  const guides: SnapGuideLine[] = [];
+  if (bestDx <= SNAP_THRESHOLD && matchedXTarget) {
+    guides.push({
+      orientation: 'vertical',
+      pos: matchedXTarget.pos,
+      start: Math.min(finalY, matchedXTarget.otherTop) - 16,
+      end: Math.max(finalY + h, matchedXTarget.otherBottom) + 16,
+      label: `X ${Math.round(matchedXTarget.pos)}`,
+    });
+  }
+  if (bestDy <= SNAP_THRESHOLD && matchedYTarget) {
+    guides.push({
+      orientation: 'horizontal',
+      pos: matchedYTarget.pos,
+      start: Math.min(finalX, matchedYTarget.otherLeft) - 16,
+      end: Math.max(finalX + w, matchedYTarget.otherRight) + 16,
+      label: `Y ${Math.round(matchedYTarget.pos)}`,
+    });
+  }
+
+  let relativeLabel: string | null = null;
+  let relativePos: Position | null = null;
+  if (nearestNode) {
+    const ox = Math.round(nearestNode.node.position.x);
+    const oy = Math.round(nearestNode.node.position.y);
+    const gapX =
+      finalX >= ox + nearestNode.ow
+        ? finalX - (ox + nearestNode.ow)
+        : ox >= finalX + w
+          ? ox - (finalX + w)
+          : finalX - ox;
+    const gapY =
+      finalY >= oy + nearestNode.oh
+        ? finalY - (oy + nearestNode.oh)
+        : oy >= finalY + h
+          ? oy - (finalY + h)
+          : finalY - oy;
+    relativeLabel = `ΔX ${gapX >= 0 ? `+${gapX}` : gapX} · ΔY ${gapY >= 0 ? `+${gapY}` : gapY}`;
+    relativePos = { x: finalX, y: finalY - 22 };
+  }
+
+  return {
+    snappedPosition: { x: finalX, y: finalY },
+    guides,
+    relativeLabel,
+    relativePos,
+  };
+}
 
 function createDefaultElement(
   type: CanvasElementType,
@@ -292,11 +432,16 @@ function clampMenuPosition(x: number, y: number): { left: number; top: number } 
 
 function CanvasInner({ onOpenTemplates }: CanvasWorkspaceProps) {
   const { state, dispatch } = useProject();
-  const { fitView, screenToFlowPosition, setViewport, zoomIn, zoomOut } = useReactFlow();
+  const { fitView, screenToFlowPosition, setViewport, getViewport } = useReactFlow();
   const [configElementId, setConfigElementId] = useState<string | null>(null);
   const [cursorPos, setCursorPos] = useState<Position | null>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+  const [snapEnabled, setSnapEnabled] = useState<boolean>(true);
+  const [snapGuides, setSnapGuides] = useState<SnapGuideLine[]>([]);
+  const [relativeBadge, setRelativeBadge] = useState<{ label: string; pos: Position } | null>(null);
 
+  const surfaceRef = useRef<HTMLDivElement | null>(null);
+  const snappedPosRef = useRef<Record<string, Position>>({});
   const lastFocusedSelectionRef = useRef<string | null>(null);
 
   const activePage =
@@ -500,21 +645,74 @@ function CanvasInner({ onOpenTemplates }: CanvasWorkspaceProps) {
     ? activePage.elements.find((el) => el.id === configElementId) ?? null
     : null;
 
+  // Native capture-phase Ctrl+wheel anywhere on canvas surface → zoom viewport before ECharts intercepts
+  useEffect(() => {
+    const surface = surfaceRef.current;
+    if (!surface) {
+      return;
+    }
+
+    const handleNativeWheel = (event: WheelEvent) => {
+      if (!(event.ctrlKey || event.metaKey)) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+
+      const rect = surface.getBoundingClientRect();
+      const cursorX = event.clientX - rect.left;
+      const cursorY = event.clientY - rect.top;
+      const vp = getViewport();
+      const factor = event.deltaY < 0 ? 1.12 : 1 / 1.12;
+      const nextZoom = Math.min(2, Math.max(0.25, vp.zoom * factor));
+      const scale = nextZoom / vp.zoom;
+
+      setViewport({
+        x: cursorX - (cursorX - vp.x) * scale,
+        y: cursorY - (cursorY - vp.y) * scale,
+        zoom: nextZoom,
+      });
+    };
+
+    surface.addEventListener('wheel', handleNativeWheel, { capture: true, passive: false });
+    return () => {
+      surface.removeEventListener('wheel', handleNativeWheel, { capture: true });
+    };
+  }, [getViewport, setViewport]);
+
   const menuCoords = contextMenu ? clampMenuPosition(contextMenu.screenX, contextMenu.screenY) : null;
 
-  // Ctrl+wheel anywhere on canvas surface → zoom viewport
-  const handleSurfaceWheel = useCallback(
-    (e: React.WheelEvent<HTMLDivElement>) => {
-      if (e.ctrlKey || e.metaKey) {
-        e.preventDefault();
-        if (e.deltaY < 0) {
-          zoomIn({ duration: 150 });
-        } else {
-          zoomOut({ duration: 150 });
-        }
+  const handleNodeDrag = useCallback(
+    (_event: unknown, node: CanvasFlowNode) => {
+      if (!snapEnabled) {
+        setSnapGuides([]);
+        setRelativeBadge(null);
+        delete snappedPosRef.current[node.id];
+        return;
+      }
+
+      const w = Number(node.width ?? node.style?.width ?? 220);
+      const h = Number(node.height ?? node.style?.height ?? 140);
+      const res = computeSnapAndGuides(node.id, node.position, { width: w, height: h }, flowNodes);
+
+      snappedPosRef.current[node.id] = res.snappedPosition;
+      setSnapGuides(res.guides);
+      setRelativeBadge(
+        res.relativeLabel && res.relativePos
+          ? { label: res.relativeLabel, pos: res.relativePos }
+          : null,
+      );
+
+      if (
+        res.snappedPosition.x !== node.position.x ||
+        res.snappedPosition.y !== node.position.y
+      ) {
+        setFlowNodes((prev) =>
+          prev.map((n) => (n.id === node.id ? { ...n, position: res.snappedPosition } : n)),
+        );
       }
     },
-    [zoomIn, zoomOut],
+    [snapEnabled, flowNodes],
   );
 
   return (
@@ -614,6 +812,19 @@ function CanvasInner({ onOpenTemplates }: CanvasWorkspaceProps) {
         <div className="cw-toolbar-group">
           <button
             type="button"
+            className={`icon-btn icon-btn--outlined ${snapEnabled ? 'icon-btn--active' : ''}`}
+            onClick={() => setSnapEnabled((prev) => !prev)}
+            title={
+              snapEnabled
+                ? 'Прив’язка та напрямні увімкнені (клік щоб вимкнути)'
+                : 'Прив’язка вимкнена (клік щоб увімкнути)'
+            }
+          >
+            <Magnet size={13} />
+            <span>Прив’язка</span>
+          </button>
+          <button
+            type="button"
             className="icon-btn icon-btn--outlined"
             onClick={onOpenTemplates}
           >
@@ -632,6 +843,7 @@ function CanvasInner({ onOpenTemplates }: CanvasWorkspaceProps) {
       </div>
 
       <div
+        ref={surfaceRef}
         className="cw-surface"
         onPointerMove={(event) => {
           const flowPoint = screenToFlowPosition({
@@ -644,7 +856,6 @@ function CanvasInner({ onOpenTemplates }: CanvasWorkspaceProps) {
           });
         }}
         onPointerLeave={() => setCursorPos(null)}
-        onWheel={handleSurfaceWheel}
       >
         <ReactFlow
           key={activePage.id}
@@ -704,14 +915,19 @@ function CanvasInner({ onOpenTemplates }: CanvasWorkspaceProps) {
               element: node.data.element,
             });
           }}
+          onNodeDrag={handleNodeDrag}
           onNodeDragStop={(_event, node) => {
+            const finalPos = snappedPosRef.current[node.id] ?? node.position;
+            delete snappedPosRef.current[node.id];
+            setSnapGuides([]);
+            setRelativeBadge(null);
             dispatch({
               type: 'MOVE_ELEMENT',
               pageId: activePage.id,
               elementId: node.id,
               position: {
-                x: Math.round(node.position.x),
-                y: Math.round(node.position.y),
+                x: Math.round(finalPos.x),
+                y: Math.round(finalPos.y),
               },
             });
           }}
@@ -730,6 +946,50 @@ function CanvasInner({ onOpenTemplates }: CanvasWorkspaceProps) {
         >
           <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="rgba(255,255,255,0.1)" />
           <Controls showInteractive={false} />
+          {(snapGuides.length > 0 || relativeBadge) && (
+            <ViewportPortal>
+              <div className="cw-snap-overlay" aria-hidden="true">
+                {snapGuides.map((g, idx) =>
+                  g.orientation === 'vertical' ? (
+                    <div
+                      key={`v-${idx}`}
+                      className="cw-snap-line cw-snap-line--vertical"
+                      style={{
+                        left: `${g.pos}px`,
+                        top: `${g.start}px`,
+                        height: `${Math.max(1, g.end - g.start)}px`,
+                      }}
+                    >
+                      <span className="cw-snap-label">{g.label}</span>
+                    </div>
+                  ) : (
+                    <div
+                      key={`h-${idx}`}
+                      className="cw-snap-line cw-snap-line--horizontal"
+                      style={{
+                        top: `${g.pos}px`,
+                        left: `${g.start}px`,
+                        width: `${Math.max(1, g.end - g.start)}px`,
+                      }}
+                    >
+                      <span className="cw-snap-label">{g.label}</span>
+                    </div>
+                  ),
+                )}
+                {relativeBadge && (
+                  <div
+                    className="cw-snap-rel-badge"
+                    style={{
+                      left: `${relativeBadge.pos.x}px`,
+                      top: `${relativeBadge.pos.y}px`,
+                    }}
+                  >
+                    {relativeBadge.label}
+                  </div>
+                )}
+              </div>
+            </ViewportPortal>
+          )}
         </ReactFlow>
 
         {activePage.elements.length === 0 && (

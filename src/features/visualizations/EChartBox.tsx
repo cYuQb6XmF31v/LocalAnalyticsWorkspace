@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
 import * as echarts from 'echarts/core';
 import { BarChart, LineChart, PieChart, ScatterChart } from 'echarts/charts';
 import {
@@ -7,7 +7,8 @@ import {
   LegendComponent,
   TooltipComponent,
 } from 'echarts/components';
-import { CanvasRenderer } from 'echarts/renderers';
+import { SVGRenderer } from 'echarts/renderers';
+import type { ChartDisplayOptions } from '../../domain/models';
 
 echarts.use([
   LineChart,
@@ -18,7 +19,7 @@ echarts.use([
   GridComponent,
   TooltipComponent,
   LegendComponent,
-  CanvasRenderer,
+  SVGRenderer,
 ]);
 
 const SERIES_PALETTE = [
@@ -57,9 +58,84 @@ export type EChartPayload =
       yName: string;
     };
 
-export function EChartBox({ payload }: { payload: EChartPayload }) {
+export interface EChartBoxHandle {
+  zoomIn: () => void;
+  zoomOut: () => void;
+  resetZoom: () => void;
+}
+
+interface EChartBoxProps {
+  payload: EChartPayload;
+  displayOptions?: ChartDisplayOptions;
+}
+
+function formatCompactValue(val: unknown): string {
+  if (typeof val !== 'number' || !Number.isFinite(val)) {
+    return String(val ?? '');
+  }
+  if (Math.abs(val) >= 1_000_000) {
+    return `${(val / 1_000_000).toFixed(1)}M`;
+  }
+  if (Math.abs(val) >= 10_000) {
+    return `${(val / 1_000).toFixed(1)}k`;
+  }
+  return Number.isInteger(val) ? String(val) : val.toFixed(1);
+}
+
+export const EChartBox = forwardRef<EChartBoxHandle, EChartBoxProps>(function EChartBox(
+  { payload, displayOptions },
+  ref,
+) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const instanceRef = useRef<echarts.ECharts | null>(null);
+  const zoomRangeRef = useRef<{ start: number; end: number }>({ start: 0, end: 100 });
+
+  useImperativeHandle(ref, () => ({
+    zoomIn: () => {
+      const chart = instanceRef.current;
+      if (!chart) {
+        return;
+      }
+      const { start, end } = zoomRangeRef.current;
+      const span = end - start;
+      const nextSpan = Math.max(10, span * 0.72);
+      const center = (start + end) / 2;
+      const nextStart = Math.max(0, center - nextSpan / 2);
+      const nextEnd = Math.min(100, nextStart + nextSpan);
+      zoomRangeRef.current = { start: nextStart, end: nextEnd };
+      chart.dispatchAction({ type: 'dataZoom', start: nextStart, end: nextEnd });
+    },
+    zoomOut: () => {
+      const chart = instanceRef.current;
+      if (!chart) {
+        return;
+      }
+      const { start, end } = zoomRangeRef.current;
+      const span = end - start;
+      const nextSpan = Math.min(100, span * 1.38);
+      const center = (start + end) / 2;
+      let nextStart = center - nextSpan / 2;
+      let nextEnd = center + nextSpan / 2;
+      if (nextStart < 0) {
+        nextEnd = Math.min(100, nextEnd - nextStart);
+        nextStart = 0;
+      }
+      if (nextEnd > 100) {
+        nextStart = Math.max(0, nextStart - (nextEnd - 100));
+        nextEnd = 100;
+      }
+      zoomRangeRef.current = { start: nextStart, end: nextEnd };
+      chart.dispatchAction({ type: 'dataZoom', start: nextStart, end: nextEnd });
+    },
+    resetZoom: () => {
+      const chart = instanceRef.current;
+      if (!chart) {
+        return;
+      }
+      zoomRangeRef.current = { start: 0, end: 100 };
+      chart.dispatchAction({ type: 'dataZoom', start: 0, end: 100 });
+    },
+  }));
 
   useEffect(() => {
     const el = containerRef.current;
@@ -67,8 +143,16 @@ export function EChartBox({ payload }: { payload: EChartPayload }) {
       return;
     }
 
-    const chart = echarts.init(el, undefined, { renderer: 'canvas' });
+    const chart = echarts.init(el, undefined, { renderer: 'svg' });
     instanceRef.current = chart;
+
+    chart.on('datazoom', () => {
+      const opt = chart.getOption() as { dataZoom?: Array<{ start?: number; end?: number }> };
+      const dz = opt.dataZoom?.[0];
+      if (dz && typeof dz.start === 'number' && typeof dz.end === 'number') {
+        zoomRangeRef.current = { start: dz.start, end: dz.end };
+      }
+    });
 
     const observer = new ResizeObserver(() => {
       chart.resize();
@@ -88,6 +172,10 @@ export function EChartBox({ payload }: { payload: EChartPayload }) {
       return;
     }
 
+    const showDataLabels = Boolean(displayOptions?.showDataLabels);
+    const dataLabelFontSize = displayOptions?.dataLabelFontSize ?? 10;
+    const axisLabelFontSize = displayOptions?.axisLabelFontSize ?? 10;
+
     const baseTooltip = {
       backgroundColor: '#171a22',
       borderColor: 'rgba(255, 255, 255, 0.14)',
@@ -100,17 +188,22 @@ export function EChartBox({ payload }: { payload: EChartPayload }) {
     const axisStyle = {
       axisLine: { lineStyle: { color: 'rgba(255, 255, 255, 0.12)' } },
       axisTick: { show: false },
-      axisLabel: { color: '#8e96aa', fontSize: 10 },
+      axisLabel: { color: '#8e96aa', fontSize: axisLabelFontSize },
     };
-
-    // dataZoom for scroll-wheel zooming inside charts
-    const insideDataZoom = [
-      { type: 'inside', xAxisIndex: 0, zoomOnMouseWheel: true, moveOnMouseMove: false, preventDefaultMouseMove: false },
-    ];
 
     const splitLine = {
       lineStyle: { color: 'rgba(255, 255, 255, 0.06)' },
     };
+
+    const insideDataZoom = [
+      {
+        type: 'inside',
+        xAxisIndex: 0,
+        zoomOnMouseWheel: true,
+        moveOnMouseMove: false,
+        preventDefaultMouseMove: false,
+      },
+    ];
 
     if (payload.kind === 'pie') {
       chart.setOption(
@@ -125,7 +218,7 @@ export function EChartBox({ payload }: { payload: EChartPayload }) {
           },
           legend: {
             bottom: 0,
-            textStyle: { color: '#a1a7b8', fontSize: 10 },
+            textStyle: { color: '#a1a7b8', fontSize: axisLabelFontSize },
             type: 'scroll',
           },
           series: [
@@ -135,7 +228,14 @@ export function EChartBox({ payload }: { payload: EChartPayload }) {
               radius: payload.isDonut ? ['44%', '72%'] : '70%',
               center: ['50%', '44%'],
               data: payload.items,
-              label: { show: false },
+              label: showDataLabels
+                ? {
+                    show: true,
+                    color: '#eceef4',
+                    fontSize: dataLabelFontSize,
+                    formatter: '{b}: {d}%',
+                  }
+                : { show: false },
               itemStyle: {
                 borderColor: '#101218',
                 borderWidth: 2,
@@ -149,6 +249,16 @@ export function EChartBox({ payload }: { payload: EChartPayload }) {
     }
 
     if (payload.kind === 'stacked-bar') {
+      const autoRotate = payload.xLabels.length > 6 ? 35 : 0;
+      const rotate =
+        displayOptions?.rotateLabels === false
+          ? 0
+          : displayOptions?.rotateLabels === true
+            ? payload.xLabels.length > 8
+              ? 45
+              : 30
+            : autoRotate;
+
       chart.setOption(
         {
           animationDuration: 220,
@@ -158,9 +268,15 @@ export function EChartBox({ payload }: { payload: EChartPayload }) {
           legend: {
             top: 0,
             type: 'scroll',
-            textStyle: { color: '#a1a7b8', fontSize: 10 },
+            textStyle: { color: '#a1a7b8', fontSize: axisLabelFontSize },
           },
-          grid: { top: 28, right: 14, bottom: 48, left: 14, containLabel: true },
+          grid: {
+            top: 28,
+            right: 14,
+            bottom: rotate > 0 ? 52 : 34,
+            left: 14,
+            containLabel: true,
+          },
           xAxis: {
             type: 'category',
             data: payload.xLabels,
@@ -168,7 +284,7 @@ export function EChartBox({ payload }: { payload: EChartPayload }) {
             axisLabel: {
               ...axisStyle.axisLabel,
               interval: 0,
-              rotate: payload.xLabels.length > 6 ? 35 : 0,
+              rotate,
               hideOverlap: true,
             },
           },
@@ -184,6 +300,15 @@ export function EChartBox({ payload }: { payload: EChartPayload }) {
             stack: 'total',
             barMaxWidth: 34,
             data: s.data,
+            label: showDataLabels
+              ? {
+                  show: true,
+                  position: 'inside',
+                  color: '#eceef4',
+                  fontSize: dataLabelFontSize,
+                  formatter: (p: { value?: unknown }) => formatCompactValue(p.value),
+                }
+              : { show: false },
           })),
         },
         true,
@@ -222,8 +347,20 @@ export function EChartBox({ payload }: { payload: EChartPayload }) {
             axisLabel: axisStyle.axisLabel,
           },
           dataZoom: [
-            { type: 'inside', xAxisIndex: 0, zoomOnMouseWheel: true, moveOnMouseMove: false },
-            { type: 'inside', yAxisIndex: 0, zoomOnMouseWheel: false, moveOnMouseMove: false },
+            {
+              type: 'inside',
+              xAxisIndex: 0,
+              zoomOnMouseWheel: true,
+              moveOnMouseMove: false,
+              preventDefaultMouseMove: false,
+            },
+            {
+              type: 'inside',
+              yAxisIndex: 0,
+              zoomOnMouseWheel: false,
+              moveOnMouseMove: false,
+              preventDefaultMouseMove: false,
+            },
           ],
           series: [
             {
@@ -233,6 +370,15 @@ export function EChartBox({ payload }: { payload: EChartPayload }) {
                 color: '#8f73ff',
                 opacity: 0.88,
               },
+              label: showDataLabels
+                ? {
+                    show: true,
+                    position: 'top',
+                    color: '#c8cddb',
+                    fontSize: dataLabelFontSize,
+                    formatter: (p: { name?: string }) => p.name ?? '',
+                  }
+                : { show: false },
               data: payload.points.map((pt) => ({
                 name: pt.label,
                 value: [pt.x, pt.y],
@@ -249,17 +395,24 @@ export function EChartBox({ payload }: { payload: EChartPayload }) {
     const isLine = payload.chartType === 'line-chart';
     const isHist = payload.chartType === 'histogram';
     const labelCount = payload.labels.length;
-    // rotate labels when there are many categories so they don't overlap
-    const labelRotate = labelCount > 8 ? 45 : labelCount > 5 ? 30 : 0;
+    const autoRotate = labelCount > 8 ? 45 : labelCount > 5 ? 30 : 0;
+    const labelRotate =
+      displayOptions?.rotateLabels === false
+        ? 0
+        : displayOptions?.rotateLabels === true
+          ? labelCount > 8
+            ? 45
+            : 30
+          : autoRotate;
 
     chart.setOption(
       {
         animationDuration: 220,
         backgroundColor: 'transparent',
         grid: {
-          top: 14,
+          top: showDataLabels ? 24 : 14,
           right: 14,
-          bottom: labelRotate > 0 ? 60 : 42,
+          bottom: labelRotate > 0 ? 54 : 34,
           left: 14,
           containLabel: true,
         },
@@ -293,6 +446,15 @@ export function EChartBox({ payload }: { payload: EChartPayload }) {
             symbolSize: isLine ? 6 : undefined,
             barMaxWidth: isHist ? undefined : 34,
             barCategoryGap: isHist ? '4%' : undefined,
+            label: showDataLabels
+              ? {
+                  show: true,
+                  position: 'top',
+                  color: '#eceef4',
+                  fontSize: dataLabelFontSize,
+                  formatter: (p: { value?: unknown }) => formatCompactValue(p.value),
+                }
+              : { show: false },
             itemStyle: {
               color: '#7c5cff',
               borderRadius: isLine ? 0 : [3, 3, 0, 0],
@@ -308,9 +470,9 @@ export function EChartBox({ payload }: { payload: EChartPayload }) {
       },
       true,
     );
-  }, [payload]);
+  }, [payload, displayOptions]);
 
   return <div ref={containerRef} style={{ width: '100%', height: '100%', minHeight: 0 }} />;
-}
+});
 
 export default EChartBox;

@@ -122,3 +122,40 @@
   align-items: center;
   gap: 6px;
 }
+
+
+.config-geom-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.config-geom-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.config-geom-cell span {
+  width: 14px;
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+}
+
+.config-inline-num {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
+.config-input--compact {
+  width: 64px;
+  flex-shrink: 0;
+  text-align: right;
+  font-family: var(--font-mono);
+}

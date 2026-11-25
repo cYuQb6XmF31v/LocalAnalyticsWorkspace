@@ -18,6 +18,7 @@ interface ElementFrameProps {
   pageId: string;
   selected: boolean;
   icon: ReactNode;
+  headerActions?: ReactNode;
   onConfigure: (elementId: string) => void;
   children: ReactNode;
 }
@@ -27,6 +28,7 @@ export function ElementFrame({
   pageId,
   selected,
   icon,
+  headerActions,
   onConfigure,
   children,
 }: ElementFrameProps) {
@@ -104,6 +106,7 @@ export function ElementFrame({
         </span>
 
         <div className="canvas-node-actions nodrag">
+          {headerActions}
           <button
             type="button"
             className="sd-mini-btn"

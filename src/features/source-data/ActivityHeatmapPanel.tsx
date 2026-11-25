@@ -1,10 +1,11 @@
-import { lazy, Suspense, useState } from 'react';
+import { lazy, Suspense, useRef, useState } from 'react';
 import { CalendarDays, ChevronDown, ChevronRight } from 'lucide-react';
 import { useProject } from '../../app/ProjectContext';
 import { computeActivityHeatmap } from '../visualizations/transforms';
 import './ActivityHeatmapPanel.css';
 
 const LazyHeatmapBox = lazy(() => import('../visualizations/EChartHeatmapBox'));
+const LEGEND_SWATCHES = ['#141720', '#2d235a', '#493594', '#6648cc', '#7c5cff', '#b49eff'];
 
 export function ActivityHeatmapPanel() {
   const { state } = useProject();
@@ -14,6 +15,31 @@ export function ActivityHeatmapPanel() {
   const [isExpanded, setIsExpanded] = useState(false);
   const [selectedDateColId, setSelectedDateColId] = useState<string | null>(null);
   const [selectedYear, setSelectedYear] = useState<string | undefined>(undefined);
+  const [heatmapHeight, setHeatmapHeight] = useState<number>(140);
+  const dragStartRef = useRef<{ startY: number; startHeight: number } | null>(null);
+
+  const handleResizePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    dragStartRef.current = { startY: e.clientY, startHeight: heatmapHeight };
+
+    const handleMove = (moveEvent: PointerEvent) => {
+      if (!dragStartRef.current) {
+        return;
+      }
+      const delta = moveEvent.clientY - dragStartRef.current.startY;
+      const next = Math.max(100, Math.min(340, dragStartRef.current.startHeight + delta));
+      setHeatmapHeight(Math.round(next));
+    };
+
+    const handleUp = () => {
+      dragStartRef.current = null;
+      window.removeEventListener('pointermove', handleMove);
+      window.removeEventListener('pointerup', handleUp);
+    };
+
+    window.addEventListener('pointermove', handleMove);
+    window.addEventListener('pointerup', handleUp);
+  };
 
   const effectiveColId =
     selectedDateColId && dateColumns.some((c) => c.id === selectedDateColId)
@@ -96,8 +122,33 @@ export function ActivityHeatmapPanel() {
                   entries={result.entries}
                   maxCount={result.maxCount}
                   columnName={result.columnName}
+                  height={heatmapHeight}
                 />
               </Suspense>
+              <div className="heatmap-legend-bar">
+                <span className="heatmap-legend-label">Менше (0)</span>
+                <div className="heatmap-legend-swatches" aria-hidden="true">
+                  {LEGEND_SWATCHES.map((color, idx) => (
+                    <span
+                      key={color}
+                      className="heatmap-legend-swatch"
+                      style={{ backgroundColor: color }}
+                      title={idx === 0 ? '0 записів' : `Рівень ${idx}`}
+                    />
+                  ))}
+                </div>
+                <span className="heatmap-legend-label">
+                  Більше ({result.maxCount})
+                </span>
+              </div>
+              <div
+                className="heatmap-resize-handle"
+                role="separator"
+                aria-orientation="horizontal"
+                aria-label="Змінити висоту календаря"
+                title="Потягніть для зміни висоти календаря"
+                onPointerDown={handleResizePointerDown}
+              />
             </div>
           )}
         </div>

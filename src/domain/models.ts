@@ -68,7 +68,14 @@ export interface KpiElementConfig {
   sparklineOrderFieldId?: string | null;
 }
 
-export interface ChartElementConfig {
+export interface ChartDisplayOptions {
+  showDataLabels?: boolean;
+  dataLabelFontSize?: number;
+  rotateLabels?: boolean;
+  axisLabelFontSize?: number;
+}
+
+export interface ChartElementConfig extends ChartDisplayOptions {
   title: string;
   xFieldId: string | null;
   yFieldId: string | null;
@@ -88,13 +95,13 @@ export interface KanbanElementConfig {
   detailFieldIds: string[];
 }
 
-export interface HistogramElementConfig {
+export interface HistogramElementConfig extends ChartDisplayOptions {
   title: string;
   valueFieldId: string | null;
   binCount: number;
 }
 
-export interface PieChartElementConfig {
+export interface PieChartElementConfig extends ChartDisplayOptions {
   title: string;
   categoryFieldId: string | null;
   valueFieldId: string | null;
@@ -102,7 +109,7 @@ export interface PieChartElementConfig {
   isDonut: boolean;
 }
 
-export interface StackedBarElementConfig {
+export interface StackedBarElementConfig extends ChartDisplayOptions {
   title: string;
   xFieldId: string | null;
   seriesFieldId: string | null;
@@ -110,7 +117,7 @@ export interface StackedBarElementConfig {
   aggregation: ChartAggregation;
 }
 
-export interface ScatterElementConfig {
+export interface ScatterElementConfig extends ChartDisplayOptions {
   title: string;
   xFieldId: string | null;
   yFieldId: string | null;

@@ -56,6 +56,20 @@
   flex-shrink: 0;
 }
 
+.canvas-node-quick-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding-right: 4px;
+  margin-right: 2px;
+  border-right: 1px solid var(--border-subtle);
+}
+
+.sd-mini-btn--active {
+  color: var(--accent-text);
+  background-color: var(--accent-muted);
+}
+
 .canvas-node-body {
   flex: 1;
   min-height: 0;

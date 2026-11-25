@@ -161,6 +161,114 @@ export function ElementConfigPanel({ pageId, element, onClose }: ElementConfigPa
 
       <div className="config-panel-body">
         <div className="config-field">
+          <span className="config-label">Розташування і розмір (px)</span>
+          <div className="config-geom-grid">
+            <label className="config-geom-cell">
+              <span>X</span>
+              <input
+                type="number"
+                className="config-input"
+                aria-label="Позиція X"
+                value={Math.round(element.position.x)}
+                onChange={(e) => {
+                  const val = Number(e.target.value);
+                  if (!Number.isFinite(val)) {
+                    return;
+                  }
+                  dispatch({
+                    type: 'MOVE_ELEMENT',
+                    pageId,
+                    elementId: element.id,
+                    position: {
+                      x: Math.round(val),
+                      y: element.position.y,
+                    },
+                  });
+                }}
+              />
+            </label>
+            <label className="config-geom-cell">
+              <span>Y</span>
+              <input
+                type="number"
+                className="config-input"
+                aria-label="Позиція Y"
+                value={Math.round(element.position.y)}
+                onChange={(e) => {
+                  const val = Number(e.target.value);
+                  if (!Number.isFinite(val)) {
+                    return;
+                  }
+                  dispatch({
+                    type: 'MOVE_ELEMENT',
+                    pageId,
+                    elementId: element.id,
+                    position: {
+                      x: element.position.x,
+                      y: Math.round(val),
+                    },
+                  });
+                }}
+              />
+            </label>
+            <label className="config-geom-cell">
+              <span>Ш</span>
+              <input
+                type="number"
+                min={180}
+                max={2400}
+                className="config-input"
+                aria-label="Ширина елемента"
+                value={Math.round(element.size.width)}
+                onChange={(e) => {
+                  const val = Number(e.target.value);
+                  if (!Number.isFinite(val)) {
+                    return;
+                  }
+                  dispatch({
+                    type: 'RESIZE_ELEMENT',
+                    pageId,
+                    elementId: element.id,
+                    size: {
+                      width: Math.max(180, Math.min(2400, Math.round(val))),
+                      height: element.size.height,
+                    },
+                  });
+                }}
+              />
+            </label>
+            <label className="config-geom-cell">
+              <span>В</span>
+              <input
+                type="number"
+                min={110}
+                max={2000}
+                className="config-input"
+                aria-label="Висота елемента"
+                value={Math.round(element.size.height)}
+                onChange={(e) => {
+                  const val = Number(e.target.value);
+                  if (!Number.isFinite(val)) {
+                    return;
+                  }
+                  dispatch({
+                    type: 'RESIZE_ELEMENT',
+                    pageId,
+                    elementId: element.id,
+                    size: {
+                      width: element.size.width,
+                      height: Math.max(110, Math.min(2000, Math.round(val))),
+                    },
+                  });
+                }}
+              />
+            </label>
+          </div>
+        </div>
+
+        <div className="config-divider" />
+
+        <div className="config-field">
           <label className="config-label" htmlFor="cfg-title">
             Заголовок
           </label>
@@ -531,6 +639,94 @@ export function ElementConfigPanel({ pageId, element, onClose }: ElementConfigPa
                   });
                 }}
               />
+            </div>
+          </>
+        )}
+
+        {(element.type === 'line-chart' ||
+          element.type === 'bar-chart' ||
+          element.type === 'histogram' ||
+          element.type === 'pie-chart' ||
+          element.type === 'stacked-bar' ||
+          element.type === 'scatter') && (
+          <>
+            <div className="config-divider" />
+            <div className="config-field">
+              <span className="config-label">Відображення графіка</span>
+              <label className="config-check-row">
+                <input
+                  type="checkbox"
+                  checked={Boolean(element.config.showDataLabels)}
+                  onChange={(e) =>
+                    updateConfig({
+                      ...element.config,
+                      showDataLabels: e.target.checked,
+                    })
+                  }
+                />
+                <span>Показувати числа на графіку</span>
+              </label>
+
+              {element.config.showDataLabels && (
+                <label className="config-inline-num">
+                  <span>Розмір шрифту чисел (px)</span>
+                  <input
+                    type="number"
+                    min={8}
+                    max={22}
+                    className="config-input config-input--compact"
+                    value={element.config.dataLabelFontSize ?? 10}
+                    onChange={(e) => {
+                      const num = Number(e.target.value);
+                      updateConfig({
+                        ...element.config,
+                        dataLabelFontSize: Number.isFinite(num)
+                          ? Math.max(8, Math.min(22, Math.round(num)))
+                          : 10,
+                      });
+                    }}
+                  />
+                </label>
+              )}
+
+              {(element.type === 'line-chart' ||
+                element.type === 'bar-chart' ||
+                element.type === 'histogram' ||
+                element.type === 'stacked-bar') && (
+                <label className="config-check-row">
+                  <input
+                    type="checkbox"
+                    checked={element.config.rotateLabels !== false}
+                    onChange={(e) =>
+                      updateConfig({
+                        ...element.config,
+                        rotateLabels: e.target.checked,
+                      })
+                    }
+                  />
+                  <span>Нахил підписів осі X</span>
+                </label>
+              )}
+
+              <label className="config-inline-num">
+                <span>Розмір шрифту підписів (px)</span>
+                <input
+                  type="number"
+                  min={8}
+                  max={20}
+                  className="config-input config-input--compact"
+                  value={element.config.axisLabelFontSize ?? 10}
+                  onChange={(e) => {
+                    const num = Number(e.target.value);
+                    updateConfig({
+                      ...element.config,
+                      axisLabelFontSize: Number.isFinite(num)
+                        ? Math.max(8, Math.min(20, Math.round(num)))
+                        : 10,
+                    });
+                  }}
+                />
+              </label>
             </div>
           </>
         )}

@@ -6,21 +6,30 @@ import {
   TooltipComponent,
   VisualMapComponent,
 } from 'echarts/components';
-import { CanvasRenderer } from 'echarts/renderers';
+import { SVGRenderer } from 'echarts/renderers';
 
 echarts.use([
   HeatmapChart,
   CalendarComponent,
   VisualMapComponent,
   TooltipComponent,
-  CanvasRenderer,
+  SVGRenderer,
 ]);
+
+export const HEATMAP_GRADIENT_STOPS = [
+  '#2d235a',
+  '#493594',
+  '#6648cc',
+  '#7c5cff',
+  '#b49eff',
+];
 
 interface EChartHeatmapBoxProps {
   year: string;
   entries: Array<[string, number]>;
   maxCount: number;
   columnName: string;
+  height?: number;
 }
 
 export function EChartHeatmapBox({
@@ -28,6 +37,7 @@ export function EChartHeatmapBox({
   entries,
   maxCount,
   columnName,
+  height = 140,
 }: EChartHeatmapBoxProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const instanceRef = useRef<echarts.ECharts | null>(null);
@@ -38,7 +48,7 @@ export function EChartHeatmapBox({
       return;
     }
 
-    const chart = echarts.init(el, undefined, { renderer: 'canvas' });
+    const chart = echarts.init(el, undefined, { renderer: 'svg' });
     instanceRef.current = chart;
 
     const observer = new ResizeObserver(() => {
@@ -59,8 +69,6 @@ export function EChartHeatmapBox({
       return;
     }
 
-    const gradientStops = ['#1e1a3a', '#3b2d7a', '#5c3dbf', '#7c5cff', '#a98fff'];
-
     chart.setOption(
       {
         animationDuration: 180,
@@ -79,32 +87,20 @@ export function EChartHeatmapBox({
           },
         },
         visualMap: {
-          min: 0,
+          min: maxCount > 1 ? 1 : 0,
           max: Math.max(maxCount, 1),
-          show: true,
-          orient: 'horizontal',
-          left: 'center',
-          bottom: 2,
-          itemWidth: 100,
-          itemHeight: 8,
-          borderWidth: 0,
-          text: ['Більше', 'Менше'],
-          textStyle: { color: '#6c7386', fontSize: 9 },
+          show: false,
           inRange: {
-            color: gradientStops,
+            color: HEATMAP_GRADIENT_STOPS,
           },
-          outOfRange: {
-            color: ['#141720'],
-          },
-          formatter: (val: number) => String(Math.round(val)),
         },
         calendar: {
           top: 22,
-          left: 32,
+          left: 30,
           right: 10,
-          bottom: 32,
+          bottom: 8,
           range: year,
-          cellSize: ['auto', 11],
+          cellSize: ['auto', 'auto'],
           splitLine: { show: false },
           itemStyle: {
             color: '#141720',
@@ -135,7 +131,11 @@ export function EChartHeatmapBox({
     );
   }, [year, entries, maxCount, columnName]);
 
-  return <div ref={containerRef} style={{ width: '100%', height: '158px' }} />;
+  useEffect(() => {
+    instanceRef.current?.resize();
+  }, [height]);
+
+  return <div ref={containerRef} style={{ width: '100%', height: `${height}px` }} />;
 }
 
 export default EChartHeatmapBox;

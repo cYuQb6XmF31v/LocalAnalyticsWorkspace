@@ -1,13 +1,17 @@
-import { lazy, Suspense, useCallback } from 'react';
+import { lazy, Suspense, useRef } from 'react';
 import type { NodeProps } from '@xyflow/react';
-import { useReactFlow } from '@xyflow/react';
 import {
   AlertTriangle,
   BarChart2,
   BarChart3,
+  Hash,
   LineChart,
   PieChart,
+  RotateCcw,
+  RotateCw,
   ScatterChart,
+  ZoomIn,
+  ZoomOut,
 } from 'lucide-react';
 import { useProject } from '../../../app/ProjectContext';
 import type {
@@ -19,7 +23,7 @@ import type {
   ScatterCanvasElement,
   StackedBarCanvasElement,
 } from '../../../domain/models';
-import type { EChartPayload } from '../../visualizations/EChartBox';
+import type { EChartBoxHandle, EChartPayload } from '../../visualizations/EChartBox';
 import {
   computeChartSeries,
   computeHistogram,
@@ -153,26 +157,109 @@ function buildChartViewModel(
 }
 
 export function ChartNode({ data, selected }: NodeProps<CanvasFlowNode>) {
-  const { state } = useProject();
-  const { zoomIn, zoomOut } = useReactFlow();
+  const { state, dispatch } = useProject();
+  const chartRef = useRef<EChartBoxHandle | null>(null);
   const element = data.element as AnyChartElement;
   const vm = buildChartViewModel(state.project.primaryDataset, element);
 
-  // Ctrl+wheel → zoom Canvas; plain wheel → let ECharts dataZoom handle
-  const handleChartWheel = useCallback(
-    (e: React.WheelEvent<HTMLDivElement>) => {
-      if (e.ctrlKey || e.metaKey) {
-        e.preventDefault();
-        e.stopPropagation();
-        if (e.deltaY < 0) {
-          zoomIn({ duration: 150 });
-        } else {
-          zoomOut({ duration: 150 });
-        }
-      }
-      // plain wheel: let ECharts handle via its own listener, nowheel keeps canvas unaffected
-    },
-    [zoomIn, zoomOut],
+  const isAxisChart =
+    element.type === 'line-chart' ||
+    element.type === 'bar-chart' ||
+    element.type === 'histogram' ||
+    element.type === 'stacked-bar';
+  const isZoomable = isAxisChart || element.type === 'scatter';
+  const showDataLabels = Boolean(element.config.showDataLabels);
+  const isRotateActive = element.config.rotateLabels !== false;
+
+  const toggleDataLabels = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    dispatch({
+      type: 'UPDATE_ELEMENT_CONFIG',
+      pageId: data.pageId,
+      elementId: element.id,
+      config: {
+        ...element.config,
+        showDataLabels: !showDataLabels,
+      },
+    });
+  };
+
+  const toggleRotateLabels = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    dispatch({
+      type: 'UPDATE_ELEMENT_CONFIG',
+      pageId: data.pageId,
+      elementId: element.id,
+      config: {
+        ...element.config,
+        rotateLabels: !isRotateActive,
+      },
+    });
+  };
+
+  const headerActions = (
+    <div className="canvas-node-quick-group">
+      <button
+        type="button"
+        className={`sd-mini-btn ${showDataLabels ? 'sd-mini-btn--active' : ''}`}
+        onClick={toggleDataLabels}
+        title={showDataLabels ? 'Сховати числа на графіку' : 'Показувати числа на графіку'}
+        aria-label="Показувати числа на графіку"
+      >
+        <Hash size={11} />
+      </button>
+      {isAxisChart && (
+        <button
+          type="button"
+          className={`sd-mini-btn ${isRotateActive ? 'sd-mini-btn--active' : ''}`}
+          onClick={toggleRotateLabels}
+          title={isRotateActive ? 'Вимкнути нахил підписів осі X' : 'Увімкнути нахил підписів осі X'}
+          aria-label="Нахил підписів осі X"
+        >
+          <RotateCw size={11} />
+        </button>
+      )}
+      {isZoomable && (
+        <>
+          <button
+            type="button"
+            className="sd-mini-btn"
+            onClick={(e) => {
+              e.stopPropagation();
+              chartRef.current?.zoomIn();
+            }}
+            title="Наблизити графік"
+            aria-label="Наблизити графік"
+          >
+            <ZoomIn size={11} />
+          </button>
+          <button
+            type="button"
+            className="sd-mini-btn"
+            onClick={(e) => {
+              e.stopPropagation();
+              chartRef.current?.zoomOut();
+            }}
+            title="Віддалити графік"
+            aria-label="Віддалити графік"
+          >
+            <ZoomOut size={11} />
+          </button>
+          <button
+            type="button"
+            className="sd-mini-btn"
+            onClick={(e) => {
+              e.stopPropagation();
+              chartRef.current?.resetZoom();
+            }}
+            title="Скинути масштаб графіка"
+            aria-label="Скинути масштаб графіка"
+          >
+            <RotateCcw size={11} />
+          </button>
+        </>
+      )}
+    </div>
   );
 
   return (
@@ -181,6 +268,7 @@ export function ChartNode({ data, selected }: NodeProps<CanvasFlowNode>) {
       pageId={data.pageId}
       selected={selected}
       icon={getChartIcon(element.type)}
+      headerActions={headerActions}
       onConfigure={data.onConfigure}
     >
       {vm.status === 'error' ? (
@@ -206,9 +294,13 @@ export function ChartNode({ data, selected }: NodeProps<CanvasFlowNode>) {
               </span>
             )}
           </div>
-          <div className="canvas-chart-area nodrag nopan nowheel" onWheel={handleChartWheel}>
+          <div className="canvas-chart-area nodrag nopan nowheel">
             <Suspense fallback={<span className="placeholder-hint">Завантаження графіка…</span>}>
-              <LazyEChartBox payload={vm.payload} />
+              <LazyEChartBox
+                ref={chartRef}
+                payload={vm.payload}
+                displayOptions={element.config}
+              />
             </Suspense>
           </div>
         </>
