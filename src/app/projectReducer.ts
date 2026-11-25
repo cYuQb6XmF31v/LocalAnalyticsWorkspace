@@ -90,7 +90,7 @@ export type ProjectAction =
   | { type: 'DELETE_ELEMENTS'; pageId: string; elementIds: string[] }
   | { type: 'SELECT_ELEMENT'; elementId: string | null; pageId?: string }
   | { type: 'SELECT_ELEMENTS'; elementIds: string[]; primaryId?: string | null; pageId?: string }
-  | { type: 'APPLY_CANVAS_PAGES'; pages: CanvasPage[]; activePageId?: string }
+  | { type: 'APPLY_CANVAS_PAGES'; pages: CanvasPage[]; activePageId?: string; append?: boolean }
   | { type: 'DISMISS_LAYOUT_CHOOSER' }
   | { type: 'REPLACE_PROJECT'; project: Project }
   | { type: 'RESTORE_SNAPSHOT'; project: Project; activePageId: string }
@@ -460,11 +460,14 @@ export function projectReducer(state: WorkspaceState, action: ProjectAction): Wo
       if (action.pages.length === 0) {
         return state;
       }
+      const nextCanvases = action.append
+        ? [...state.project.canvases, ...action.pages]
+        : action.pages;
       return {
         ...state,
         project: {
           ...state.project,
-          canvases: action.pages,
+          canvases: nextCanvases,
           metadata: { ...state.project.metadata, updatedAt: new Date().toISOString() },
         },
         activePageId: action.activePageId ?? action.pages[0].id,

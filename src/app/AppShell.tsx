@@ -299,10 +299,15 @@ export function AppShell() {
 
   const handleSelectTemplate = (templateId: CanvasTemplateId) => {
     const pages = buildPagesFromTemplate(templateId, project.primaryDataset);
+    const shouldReplaceEmptyInitial =
+      needsLayoutChooser &&
+      project.canvases.length === 1 &&
+      project.canvases[0].elements.length === 0;
     dispatch({
       type: 'APPLY_CANVAS_PAGES',
       pages,
       activePageId: pages[0]?.id,
+      append: !shouldReplaceEmptyInitial,
     });
     setIsTemplateChooserOpen(false);
     navigateTo('workspace');
