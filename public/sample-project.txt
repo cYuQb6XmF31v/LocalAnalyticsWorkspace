@@ -1,0 +1,73 @@
+# LOCAL-ANALYTICS-PROJECT
+# Format-Version: 1
+# Project-Name: Тестовий проект — Продажі
+
+[DATASET id="main"]
+# Name: Дані продажів
+# Columns: date:date;product:text;category:text;region:text;quantity:number;revenue:number;status:text
+2026-01-05;Laptop Pro 15;Електроніка;Київ;3;87000;Виконано
+2026-01-12;Монітор UltraWide;Електроніка;Харків;5;62500;Виконано
+2026-01-18;Механічна клавіатура;Аксесуари;Київ;10;22000;Виконано
+2026-01-25;Веб-камера HD;Аксесуари;Одеса;7;14700;В обробці
+2026-02-03;Навушники Pro;Аудіо;Київ;4;31200;Виконано
+2026-02-10;Мікрофон студійний;Аудіо;Харків;2;18400;Скасовано
+2026-02-17;Laptop Pro 15;Електроніка;Одеса;2;58000;Виконано
+2026-02-24;SSD 1TB;Компоненти;Київ;15;52500;Виконано
+2026-03-04;Відеокарта RTX;Компоненти;Дніпро;1;24900;В обробці
+2026-03-11;Монітор UltraWide;Електроніка;Київ;3;37500;Виконано
+2026-03-19;Мишка бездротова;Аксесуари;Дніпро;20;18000;Виконано
+2026-03-25;Навушники Pro;Аудіо;Одеса;6;46800;Виконано
+2026-04-02;Laptop Pro 15;Електроніка;Харків;4;116000;В обробці
+2026-04-09;SSD 1TB;Компоненти;Одеса;8;28000;Виконано
+2026-04-16;Веб-камера HD;Аксесуари;Київ;12;25200;Виконано
+[/DATASET]
+
+[CANVAS id="overview"]
+# Name: Огляд
+# Viewport: x=0;y=0;zoom=1
+[ITEM id="kpi-revenue" type="kpi"]
+# Position: x=60;y=60
+# Size: width=240;height=140
+# Config-JSON: {"title":"Загальний дохід","valueFieldId":"revenue","aggregation":"sum"}
+[/ITEM]
+[ITEM id="kpi-qty" type="kpi"]
+# Position: x=320;y=60
+# Size: width=240;height=140
+# Config-JSON: {"title":"Кількість продажів","valueFieldId":"quantity","aggregation":"sum"}
+[/ITEM]
+[ITEM id="chart-line" type="line-chart"]
+# Position: x=60;y=230
+# Size: width=440;height=260
+# Config-JSON: {"title":"Дохід за датою","xFieldId":"date","yFieldId":"revenue","aggregation":"sum"}
+[/ITEM]
+[ITEM id="chart-bar" type="bar-chart"]
+# Position: x=530;y=230
+# Size: width=420;height=260
+# Config-JSON: {"title":"Дохід за категорією","xFieldId":"category","yFieldId":"revenue","aggregation":"sum"}
+[/ITEM]
+[ITEM id="note-welcome" type="note"]
+# Position: x=580;y=60
+# Size: width=280;height=140
+# Config-JSON: {"title":"Вітаємо!","content":"Це тестовий проект. Відредагуй дані у панелі праворуч та спостерігай як оновлюються графіки в реальному часі."}
+[/ITEM]
+[/CANVAS]
+
+[CANVAS id="details"]
+# Name: Деталі
+# Viewport: x=0;y=0;zoom=1
+[ITEM id="table-main" type="table-view"]
+# Position: x=60;y=60
+# Size: width=700;height=320
+# Config-JSON: {"title":"Всі продажі","columnIds":["date","product","category","region","quantity","revenue","status"],"maxRows":50}
+[/ITEM]
+[ITEM id="pie-cat" type="pie-chart"]
+# Position: x=60;y=410
+# Size: width=360;height=280
+# Config-JSON: {"title":"Частка за категорією","categoryFieldId":"category","valueFieldId":"revenue","aggregation":"sum","isDonut":true}
+[/ITEM]
+[ITEM id="bar-region" type="bar-chart"]
+# Position: x=450;y=410
+# Size: width=400;height=280
+# Config-JSON: {"title":"Дохід за регіоном","xFieldId":"region","yFieldId":"revenue","aggregation":"sum"}
+[/ITEM]
+[/CANVAS]

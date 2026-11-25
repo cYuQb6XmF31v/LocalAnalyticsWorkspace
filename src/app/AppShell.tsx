@@ -6,7 +6,6 @@ import {
   FilePlus2,
   FileUp,
   FolderTree,
-  HelpCircle,
   Info,
   Layers,
   LayoutGrid,
@@ -409,18 +408,6 @@ export function AppShell() {
           >
             <FileDown size={14} />
             <span>{uk.header.exportTxt}</span>
-          </button>
-
-          <button
-            type="button"
-            className={`icon-btn icon-btn--outlined ${
-              activeView === 'help' ? 'icon-btn--active' : ''
-            }`}
-            onClick={() => navigateTo(activeView === 'help' ? 'workspace' : 'help')}
-            title={uk.header.help}
-          >
-            <HelpCircle size={14} />
-            <span className="desktop-only">{uk.header.help}</span>
           </button>
 
           <button

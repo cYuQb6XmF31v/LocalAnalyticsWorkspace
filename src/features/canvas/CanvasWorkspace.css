@@ -73,3 +73,104 @@
   pointer-events: auto;
   background-color: rgba(20, 23, 32, 0.9);
 }
+
+/* Live coordinate HUD */
+.cw-hud {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 10;
+  pointer-events: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  border-radius: var(--radius-md);
+  background-color: rgba(16, 18, 24, 0.88);
+  border: 1px solid var(--border-default);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+  backdrop-filter: blur(6px);
+}
+
+.cw-hud-sep {
+  width: 1px;
+  height: 12px;
+  background-color: var(--border-subtle);
+}
+
+.cw-hud-highlight {
+  color: var(--accent-text);
+}
+
+/* Custom Canvas right-click context menu */
+.cw-context-menu {
+  position: fixed;
+  z-index: 120;
+  min-width: 224px;
+  max-width: 260px;
+  padding: 5px;
+  border-radius: var(--radius-lg);
+  background-color: var(--bg-panel);
+  border: 1px solid var(--border-default);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cw-context-section-label {
+  padding: 4px 8px 2px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.cw-context-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+  color: var(--text-primary);
+  text-align: left;
+  transition: background-color var(--transition-fast);
+}
+
+.cw-context-item:hover {
+  background-color: var(--bg-hover);
+}
+
+.cw-context-item--danger {
+  color: var(--status-danger);
+}
+
+.cw-context-item--danger:hover {
+  background-color: rgba(248, 113, 113, 0.14);
+}
+
+.cw-context-item-left {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.cw-context-kbd {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.cw-context-divider {
+  height: 1px;
+  background-color: var(--border-subtle);
+  margin: 3px 4px;
+}

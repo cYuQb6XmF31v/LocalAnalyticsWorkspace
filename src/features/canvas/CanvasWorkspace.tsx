@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Background,
   BackgroundVariant,
   Controls,
+  NodeChangeset,
   ReactFlow,
   ReactFlowProvider,
   useReactFlow,
@@ -13,19 +14,25 @@ import {
   BarChart2,
   BarChart3,
   Columns3,
+  Copy,
+  Crosshair,
+  FilePlus,
   Grid3x3,
   Hash,
   LayoutTemplate,
   LineChart,
   Maximize2,
   PieChart,
+  RotateCcw,
   ScatterChart,
+  Settings2,
   StickyNote,
   Table,
+  Trash2,
 } from 'lucide-react';
 import { useProject } from '../../app/ProjectContext';
 import { createStableId } from '../../domain/id';
-import type { CanvasElement, CanvasElementType, Dataset } from '../../domain/models';
+import type { CanvasElement, CanvasElementType, Dataset, Position } from '../../domain/models';
 import { uk } from '../../i18n/uk';
 import { ElementConfigPanel } from './ElementConfigPanel';
 import { ChartNode } from './nodes/ChartNode';
@@ -55,13 +62,30 @@ const NODE_TYPES: NodeTypes = {
   'pivot-table': PivotTableNode,
 };
 
+type ContextMenuState =
+  | {
+      kind: 'pane';
+      screenX: number;
+      screenY: number;
+      flowPos: Position;
+    }
+  | {
+      kind: 'node';
+      screenX: number;
+      screenY: number;
+      element: CanvasElement;
+    };
+
 function createDefaultElement(
   type: CanvasElementType,
   indexOffset: number,
   dataset: Dataset,
+  explicitPosition?: Position,
 ): CanvasElement {
   const offset = (indexOffset % 6) * 28;
-  const basePos = { x: 60 + offset, y: 60 + offset };
+  const basePos = explicitPosition
+    ? { x: Math.round(explicitPosition.x), y: Math.round(explicitPosition.y) }
+    : { x: 60 + offset, y: 60 + offset };
 
   const columnIds = dataset.columns.map((c) => c.id);
   const numericCols = dataset.columns.filter((c) => c.type === 'number').map((c) => c.id);
@@ -220,10 +244,59 @@ function createDefaultElement(
   }
 }
 
+function buildFlowNodes(
+  elements: CanvasElement[],
+  pageId: string,
+  selectedElementId: string | null,
+  onConfigure: (elementId: string) => void,
+): CanvasFlowNode[] {
+  return elements.map((el) => ({
+    id: el.id,
+    type: el.type,
+    position: el.position,
+    width: el.size.width,
+    height: el.size.height,
+    style: { width: el.size.width, height: el.size.height },
+    selected: el.id === selectedElementId,
+    dragHandle: '.canvas-node-drag',
+    data: {
+      element: el,
+      pageId,
+      onConfigure,
+    },
+  }));
+}
+
+function isEditableTarget(target: EventTarget | null): boolean {
+  if (!target || !(target instanceof HTMLElement)) {
+    return false;
+  }
+  const tag = target.tagName;
+  return (
+    tag === 'INPUT' ||
+    tag === 'TEXTAREA' ||
+    tag === 'SELECT' ||
+    target.isContentEditable
+  );
+}
+
+function clampMenuPosition(x: number, y: number): { left: number; top: number } {
+  if (typeof window === 'undefined') {
+    return { left: x, top: y };
+  }
+  return {
+    left: Math.max(8, Math.min(x, window.innerWidth - 250)),
+    top: Math.max(8, Math.min(y, window.innerHeight - 360)),
+  };
+}
+
 function CanvasInner({ onOpenTemplates }: CanvasWorkspaceProps) {
   const { state, dispatch } = useProject();
-  const { fitView } = useReactFlow();
+  const { fitView, screenToFlowPosition, setViewport } = useReactFlow();
   const [configElementId, setConfigElementId] = useState<string | null>(null);
+  const [cursorPos, setCursorPos] = useState<Position | null>(null);
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+
   const lastFocusedSelectionRef = useRef<string | null>(null);
 
   const activePage =
@@ -232,6 +305,53 @@ function CanvasInner({ onOpenTemplates }: CanvasWorkspaceProps) {
 
   const handleOpenConfig = useCallback((elementId: string) => {
     setConfigElementId((prev) => (prev === elementId ? null : elementId));
+  }, []);
+
+  const [flowNodes, setFlowNodes] = useState<CanvasFlowNode[]>(() =>
+    buildFlowNodes(
+      activePage.elements,
+      activePage.id,
+      state.selectedElementId,
+      handleOpenConfig,
+    ),
+  );
+
+  // Sync authoritative project model into React Flow nodes whenever elements/selection change
+  useEffect(() => {
+    setFlowNodes(
+      buildFlowNodes(
+        activePage.elements,
+        activePage.id,
+        state.selectedElementId,
+        handleOpenConfig,
+      ),
+    );
+  }, [activePage.elements, activePage.id, state.selectedElementId, handleOpenConfig]);
+
+  // Apply real-time drag and resize changes inside React Flow state
+  const handleNodesChange = useCallback((changes: NodeChangeset<CanvasFlowNode>) => {
+    setFlowNodes((prev) => {
+      const updated = changes.applyTo(prev);
+      const changeArray = changes.toArray();
+      return updated.map((node) => {
+        const dimChange = changeArray.find(
+          (c) => c.type === 'dimensions' && c.id === node.id,
+        );
+        if (dimChange && dimChange.type === 'dimensions' && dimChange.dimensions) {
+          return {
+            ...node,
+            width: dimChange.dimensions.width,
+            height: dimChange.dimensions.height,
+            style: {
+              ...node.style,
+              width: dimChange.dimensions.width,
+              height: dimChange.dimensions.height,
+            },
+          };
+        }
+        return node;
+      });
+    });
   }, []);
 
   useEffect(() => {
@@ -244,7 +364,11 @@ function CanvasInner({ onOpenTemplates }: CanvasWorkspaceProps) {
   }, [activePage, configElementId]);
 
   useEffect(() => {
-    if (!state.selectedElementId || state.selectedElementId === lastFocusedSelectionRef.current) {
+    if (!state.selectedElementId) {
+      lastFocusedSelectionRef.current = null;
+      return;
+    }
+    if (state.selectedElementId === lastFocusedSelectionRef.current) {
       return;
     }
     const existsOnPage = activePage.elements.some((el) => el.id === state.selectedElementId);
@@ -263,28 +387,33 @@ function CanvasInner({ onOpenTemplates }: CanvasWorkspaceProps) {
     return () => window.clearTimeout(timer);
   }, [state.selectedElementId, activePage.elements, fitView]);
 
-  const nodes = useMemo<CanvasFlowNode[]>(
-    () =>
-      activePage.elements.map((el) => ({
-        id: el.id,
-        type: el.type,
-        position: el.position,
-        width: el.size.width,
-        height: el.size.height,
-        style: { width: el.size.width, height: el.size.height },
-        selected: el.id === state.selectedElementId,
-        dragHandle: '.canvas-node-drag',
-        data: {
-          element: el,
-          pageId: activePage.id,
-          onConfigure: handleOpenConfig,
-        },
-      })),
-    [activePage.elements, activePage.id, state.selectedElementId, handleOpenConfig],
-  );
+  // Close custom context menu on outside click or Escape
+  useEffect(() => {
+    if (!contextMenu) {
+      return;
+    }
+    const closeMenu = () => setContextMenu(null);
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setContextMenu(null);
+      }
+    };
+    window.addEventListener('pointerdown', closeMenu);
+    window.addEventListener('keydown', handleKey);
+    return () => {
+      window.removeEventListener('pointerdown', closeMenu);
+      window.removeEventListener('keydown', handleKey);
+    };
+  }, [contextMenu]);
 
-  const handleAddElement = (type: CanvasElementType) => {
-    const element = createDefaultElement(type, activePage.elements.length, dataset);
+  const handleAddElement = (type: CanvasElementType, explicitPosition?: Position) => {
+    const element = createDefaultElement(
+      type,
+      activePage.elements.length,
+      dataset,
+      explicitPosition,
+    );
+    lastFocusedSelectionRef.current = element.id;
     dispatch({
       type: 'ADD_ELEMENT',
       pageId: activePage.id,
@@ -296,12 +425,85 @@ function CanvasInner({ onOpenTemplates }: CanvasWorkspaceProps) {
     }
   };
 
+  const handleDuplicateElement = (element: CanvasElement) => {
+    const copy: CanvasElement = {
+      ...element,
+      id: createStableId('el'),
+      position: {
+        x: element.position.x + 28,
+        y: element.position.y + 28,
+      },
+      config: {
+        ...element.config,
+        title: `${element.config.title} (копія)`,
+      },
+    } as CanvasElement;
+
+    lastFocusedSelectionRef.current = copy.id;
+    dispatch({
+      type: 'ADD_ELEMENT',
+      pageId: activePage.id,
+      element: copy,
+      select: true,
+    });
+  };
+
+  const handleNodesDelete = useCallback(
+    (deletedNodes: CanvasFlowNode[]) => {
+      for (const node of deletedNodes) {
+        dispatch({
+          type: 'DELETE_ELEMENT',
+          pageId: activePage.id,
+          elementId: node.id,
+        });
+      }
+    },
+    [activePage.id, dispatch],
+  );
+
+  const handleSurfaceKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== 'Delete' || !state.selectedElementId) {
+      return;
+    }
+    if (isEditableTarget(event.target)) {
+      return;
+    }
+    event.preventDefault();
+    dispatch({
+      type: 'DELETE_ELEMENT',
+      pageId: activePage.id,
+      elementId: state.selectedElementId,
+    });
+  };
+
+  const selectedFlowNode = state.selectedElementId
+    ? flowNodes.find((n) => n.id === state.selectedElementId) ?? null
+    : null;
+
+  const selectedNodeWidth = selectedFlowNode
+    ? Number(selectedFlowNode.width ?? selectedFlowNode.style?.width ?? 0)
+    : 0;
+  const selectedNodeHeight = selectedFlowNode
+    ? Number(selectedFlowNode.height ?? selectedFlowNode.style?.height ?? 0)
+    : 0;
+  const selectedCenter =
+    selectedFlowNode && selectedNodeWidth > 0 && selectedNodeHeight > 0
+      ? {
+          x: Math.round(selectedFlowNode.position.x + selectedNodeWidth / 2),
+          y: Math.round(selectedFlowNode.position.y + selectedNodeHeight / 2),
+          w: Math.round(selectedNodeWidth),
+          h: Math.round(selectedNodeHeight),
+        }
+      : null;
+
   const configElement = configElementId
     ? activePage.elements.find((el) => el.id === configElementId) ?? null
     : null;
 
+  const menuCoords = contextMenu ? clampMenuPosition(contextMenu.screenX, contextMenu.screenY) : null;
+
   return (
-    <div className="cw-root">
+    <div className="cw-root" onKeyDown={handleSurfaceKeyDown}>
       <div className="cw-toolbar">
         <div className="cw-toolbar-group">
           <button
@@ -414,16 +616,33 @@ function CanvasInner({ onOpenTemplates }: CanvasWorkspaceProps) {
         </div>
       </div>
 
-      <div className="cw-surface">
+      <div
+        className="cw-surface"
+        onPointerMove={(event) => {
+          const flowPoint = screenToFlowPosition({
+            x: event.clientX,
+            y: event.clientY,
+          });
+          setCursorPos({
+            x: Math.round(flowPoint.x),
+            y: Math.round(flowPoint.y),
+          });
+        }}
+        onPointerLeave={() => setCursorPos(null)}
+      >
         <ReactFlow
           key={activePage.id}
-          nodes={nodes}
+          nodes={flowNodes}
           edges={[]}
           nodeTypes={NODE_TYPES}
           defaultViewport={activePage.viewport}
           minZoom={0.25}
           maxZoom={2}
+          deleteKeyCode="Delete"
+          onNodesChange={handleNodesChange}
+          onNodesDelete={handleNodesDelete}
           onNodeClick={(_event, node) => {
+            setContextMenu(null);
             lastFocusedSelectionRef.current = node.id;
             dispatch({
               type: 'SELECT_ELEMENT',
@@ -432,6 +651,7 @@ function CanvasInner({ onOpenTemplates }: CanvasWorkspaceProps) {
             });
           }}
           onPaneClick={() => {
+            setContextMenu(null);
             lastFocusedSelectionRef.current = null;
             dispatch({
               type: 'SELECT_ELEMENT',
@@ -439,6 +659,34 @@ function CanvasInner({ onOpenTemplates }: CanvasWorkspaceProps) {
               pageId: activePage.id,
             });
             setConfigElementId(null);
+          }}
+          onPaneContextMenu={(event) => {
+            event.preventDefault();
+            const flowPos = screenToFlowPosition({
+              x: event.clientX,
+              y: event.clientY,
+            });
+            setContextMenu({
+              kind: 'pane',
+              screenX: event.clientX,
+              screenY: event.clientY,
+              flowPos,
+            });
+          }}
+          onNodeContextMenu={(event, node) => {
+            event.preventDefault();
+            lastFocusedSelectionRef.current = node.id;
+            dispatch({
+              type: 'SELECT_ELEMENT',
+              elementId: node.id,
+              pageId: activePage.id,
+            });
+            setContextMenu({
+              kind: 'node',
+              screenX: event.clientX,
+              screenY: event.clientY,
+              element: node.data.element,
+            });
           }}
           onNodeDragStop={(_event, node) => {
             dispatch({
@@ -495,6 +743,21 @@ function CanvasInner({ onOpenTemplates }: CanvasWorkspaceProps) {
           </div>
         )}
 
+        <div className="cw-hud" aria-live="off">
+          <span>
+            Курсор: {cursorPos ? `X ${cursorPos.x} · Y ${cursorPos.y}` : '—'}
+          </span>
+          {selectedCenter && (
+            <>
+              <span className="cw-hud-sep" aria-hidden="true" />
+              <span className="cw-hud-highlight">
+                Центр: X {selectedCenter.x} · Y {selectedCenter.y} ({selectedCenter.w}×
+                {selectedCenter.h})
+              </span>
+            </>
+          )}
+        </div>
+
         {configElement && (
           <ElementConfigPanel
             pageId={activePage.id}
@@ -503,6 +766,275 @@ function CanvasInner({ onOpenTemplates }: CanvasWorkspaceProps) {
           />
         )}
       </div>
+
+      {contextMenu && menuCoords && (
+        <div
+          className="cw-context-menu"
+          style={{ left: `${menuCoords.left}px`, top: `${menuCoords.top}px` }}
+          role="menu"
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          {contextMenu.kind === 'pane' ? (
+            <>
+              <div className="cw-context-section-label">Додати тут</div>
+              <button
+                type="button"
+                className="cw-context-item"
+                role="menuitem"
+                onClick={() => {
+                  handleAddElement('note', contextMenu.flowPos);
+                  setContextMenu(null);
+                }}
+              >
+                <span className="cw-context-item-left">
+                  <StickyNote size={13} />
+                  <span>Нотатка</span>
+                </span>
+              </button>
+              <button
+                type="button"
+                className="cw-context-item"
+                role="menuitem"
+                onClick={() => {
+                  handleAddElement('kpi', contextMenu.flowPos);
+                  setContextMenu(null);
+                }}
+              >
+                <span className="cw-context-item-left">
+                  <Hash size={13} />
+                  <span>KPI-картка</span>
+                </span>
+              </button>
+              <button
+                type="button"
+                className="cw-context-item"
+                role="menuitem"
+                onClick={() => {
+                  handleAddElement('line-chart', contextMenu.flowPos);
+                  setContextMenu(null);
+                }}
+              >
+                <span className="cw-context-item-left">
+                  <LineChart size={13} />
+                  <span>Лінійний графік</span>
+                </span>
+              </button>
+              <button
+                type="button"
+                className="cw-context-item"
+                role="menuitem"
+                onClick={() => {
+                  handleAddElement('bar-chart', contextMenu.flowPos);
+                  setContextMenu(null);
+                }}
+              >
+                <span className="cw-context-item-left">
+                  <BarChart3 size={13} />
+                  <span>Стовпчиковий графік</span>
+                </span>
+              </button>
+              <button
+                type="button"
+                className="cw-context-item"
+                role="menuitem"
+                onClick={() => {
+                  handleAddElement('pie-chart', contextMenu.flowPos);
+                  setContextMenu(null);
+                }}
+              >
+                <span className="cw-context-item-left">
+                  <PieChart size={13} />
+                  <span>Кругова діаграма</span>
+                </span>
+              </button>
+              <button
+                type="button"
+                className="cw-context-item"
+                role="menuitem"
+                onClick={() => {
+                  handleAddElement('kanban', contextMenu.flowPos);
+                  setContextMenu(null);
+                }}
+              >
+                <span className="cw-context-item-left">
+                  <Columns3 size={13} />
+                  <span>Kanban-дошка</span>
+                </span>
+              </button>
+              <button
+                type="button"
+                className="cw-context-item"
+                role="menuitem"
+                onClick={() => {
+                  handleAddElement('pivot-table', contextMenu.flowPos);
+                  setContextMenu(null);
+                }}
+              >
+                <span className="cw-context-item-left">
+                  <Grid3x3 size={13} />
+                  <span>Зведена таблиця</span>
+                </span>
+              </button>
+              <button
+                type="button"
+                className="cw-context-item"
+                role="menuitem"
+                onClick={() => {
+                  handleAddElement('table-view', contextMenu.flowPos);
+                  setContextMenu(null);
+                }}
+              >
+                <span className="cw-context-item-left">
+                  <Table size={13} />
+                  <span>Таблиця перегляду</span>
+                </span>
+              </button>
+
+              <div className="cw-context-divider" />
+              <div className="cw-context-section-label">Полотно</div>
+
+              <button
+                type="button"
+                className="cw-context-item"
+                role="menuitem"
+                onClick={() => {
+                  fitView({ padding: 0.25, duration: 220 });
+                  setContextMenu(null);
+                }}
+              >
+                <span className="cw-context-item-left">
+                  <Maximize2 size={13} />
+                  <span>Вписати в екран</span>
+                </span>
+              </button>
+              <button
+                type="button"
+                className="cw-context-item"
+                role="menuitem"
+                onClick={() => {
+                  setViewport({ x: 0, y: 0, zoom: 1 }, { duration: 200 });
+                  dispatch({
+                    type: 'SET_PAGE_VIEWPORT',
+                    pageId: activePage.id,
+                    viewport: { x: 0, y: 0, zoom: 1 },
+                  });
+                  setContextMenu(null);
+                }}
+              >
+                <span className="cw-context-item-left">
+                  <RotateCcw size={13} />
+                  <span>Скинути масштаб (100%)</span>
+                </span>
+              </button>
+              <button
+                type="button"
+                className="cw-context-item"
+                role="menuitem"
+                onClick={() => {
+                  setContextMenu(null);
+                  onOpenTemplates();
+                }}
+              >
+                <span className="cw-context-item-left">
+                  <LayoutTemplate size={13} />
+                  <span>Обрати шаблон</span>
+                </span>
+              </button>
+              <button
+                type="button"
+                className="cw-context-item"
+                role="menuitem"
+                onClick={() => {
+                  dispatch({
+                    type: 'ADD_PAGE',
+                    name: `Сторінка ${state.project.canvases.length + 1}`,
+                    activate: true,
+                  });
+                  setContextMenu(null);
+                }}
+              >
+                <span className="cw-context-item-left">
+                  <FilePlus size={13} />
+                  <span>Нова сторінка Canvas</span>
+                </span>
+              </button>
+            </>
+          ) : (
+            <>
+              <div className="cw-context-section-label">
+                {contextMenu.element.config.title || 'Елемент'}
+              </div>
+              <button
+                type="button"
+                className="cw-context-item"
+                role="menuitem"
+                onClick={() => {
+                  setConfigElementId(contextMenu.element.id);
+                  setContextMenu(null);
+                }}
+              >
+                <span className="cw-context-item-left">
+                  <Settings2 size={13} />
+                  <span>Налаштувати</span>
+                </span>
+              </button>
+              <button
+                type="button"
+                className="cw-context-item"
+                role="menuitem"
+                onClick={() => {
+                  handleDuplicateElement(contextMenu.element);
+                  setContextMenu(null);
+                }}
+              >
+                <span className="cw-context-item-left">
+                  <Copy size={13} />
+                  <span>Дублювати</span>
+                </span>
+              </button>
+              <button
+                type="button"
+                className="cw-context-item"
+                role="menuitem"
+                onClick={() => {
+                  fitView({
+                    nodes: [{ id: contextMenu.element.id }],
+                    padding: 0.45,
+                    duration: 220,
+                    maxZoom: 1.15,
+                  });
+                  setContextMenu(null);
+                }}
+              >
+                <span className="cw-context-item-left">
+                  <Crosshair size={13} />
+                  <span>Центрувати на елементі</span>
+                </span>
+              </button>
+              <div className="cw-context-divider" />
+              <button
+                type="button"
+                className="cw-context-item cw-context-item--danger"
+                role="menuitem"
+                onClick={() => {
+                  dispatch({
+                    type: 'DELETE_ELEMENT',
+                    pageId: activePage.id,
+                    elementId: contextMenu.element.id,
+                  });
+                  setContextMenu(null);
+                }}
+              >
+                <span className="cw-context-item-left">
+                  <Trash2 size={13} />
+                  <span>Видалити</span>
+                </span>
+                <span className="cw-context-kbd">Del</span>
+              </button>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }
