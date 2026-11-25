@@ -1,14 +1,20 @@
 import { useState } from 'react';
 import {
+  BarChart2,
   BarChart3,
   ChevronDown,
   ChevronRight,
+  Columns3,
   Edit2,
+  Grid3x3,
   Hash,
   HelpCircle,
   LayoutGrid,
   LineChart,
+  PieChart,
   Plus,
+  ScatterChart,
+  Share2,
   StickyNote,
   Table,
   Trash2,
@@ -20,8 +26,10 @@ import { uk } from '../../i18n/uk';
 import './ProjectTree.css';
 
 interface ProjectTreeProps {
+  onOpenGraph: () => void;
   onOpenHelp: () => void;
   onNavigateToCanvas: () => void;
+  isGraphActive: boolean;
   isHelpActive: boolean;
 }
 
@@ -34,15 +42,28 @@ function getElementIcon(type: CanvasElementType) {
     case 'line-chart':
       return <LineChart size={12} />;
     case 'bar-chart':
+    case 'stacked-bar':
       return <BarChart3 size={12} />;
+    case 'histogram':
+      return <BarChart2 size={12} />;
+    case 'pie-chart':
+      return <PieChart size={12} />;
+    case 'scatter':
+      return <ScatterChart size={12} />;
+    case 'kanban':
+      return <Columns3 size={12} />;
+    case 'pivot-table':
+      return <Grid3x3 size={12} />;
     case 'table-view':
       return <Table size={12} />;
   }
 }
 
 export function ProjectTree({
+  onOpenGraph,
   onOpenHelp,
   onNavigateToCanvas,
+  isGraphActive,
   isHelpActive,
 }: ProjectTreeProps) {
   const { state, dispatch } = useProject();
@@ -101,7 +122,7 @@ export function ProjectTree({
         </div>
 
         {project.canvases.map((page) => {
-          const isPageActive = !isHelpActive && page.id === activePageId;
+          const isPageActive = !isGraphActive && !isHelpActive && page.id === activePageId;
           const isCollapsed = Boolean(collapsedPages[page.id]);
           const isRenaming = renamingPageId === page.id;
 
@@ -175,7 +196,8 @@ export function ProjectTree({
               {!isCollapsed && page.elements.length > 0 && (
                 <div className="pt-elements">
                   {page.elements.map((el) => {
-                    const isElSelected = !isHelpActive && selectedElementId === el.id;
+                    const isElSelected =
+                      !isGraphActive && !isHelpActive && selectedElementId === el.id;
                     return (
                       <button
                         key={el.id}
@@ -203,6 +225,14 @@ export function ProjectTree({
       </div>
 
       <div className="pt-footer">
+        <button
+          type="button"
+          className={`icon-btn pt-help-btn ${isGraphActive ? 'icon-btn--active' : ''}`}
+          onClick={onOpenGraph}
+        >
+          <Share2 size={14} />
+          <span>{uk.header.graphView}</span>
+        </button>
         <button
           type="button"
           className={`icon-btn pt-help-btn ${isHelpActive ? 'icon-btn--active' : ''}`}

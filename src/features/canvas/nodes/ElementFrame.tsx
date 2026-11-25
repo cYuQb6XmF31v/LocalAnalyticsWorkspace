@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react';
 import { NodeResizer, type Node } from '@xyflow/react';
-import { Settings2, Trash2 } from 'lucide-react';
+import { ArrowUpRight, Settings2, Trash2 } from 'lucide-react';
 import { useProject } from '../../../app/ProjectContext';
-import type { CanvasElement } from '../../../domain/models';
+import type { CanvasElement, ElementLink } from '../../../domain/models';
 import './CanvasNodes.css';
 
 export interface CanvasFlowNodeData extends Record<string, unknown> {
@@ -30,7 +30,44 @@ export function ElementFrame({
   onConfigure,
   children,
 }: ElementFrameProps) {
-  const { dispatch } = useProject();
+  const { state, dispatch } = useProject();
+  const links = element.links ?? [];
+
+  const resolveLinkDisplay = (link: ElementLink) => {
+    const targetPage = state.project.canvases.find((p) => p.id === link.targetPageId);
+    if (!targetPage) {
+      return { valid: false, text: link.label || 'Видалена сторінка' };
+    }
+    if (link.targetElementId) {
+      const targetEl = targetPage.elements.find((e) => e.id === link.targetElementId);
+      if (!targetEl) {
+        return { valid: false, text: link.label || 'Видалений елемент' };
+      }
+      return {
+        valid: true,
+        text: link.label || `${targetPage.name} → ${targetEl.config.title}`,
+      };
+    }
+    return {
+      valid: true,
+      text: link.label || targetPage.name,
+    };
+  };
+
+  const handleNavigateLink = (link: ElementLink) => {
+    if (link.targetElementId) {
+      dispatch({
+        type: 'SELECT_ELEMENT',
+        pageId: link.targetPageId,
+        elementId: link.targetElementId,
+      });
+    } else {
+      dispatch({
+        type: 'SELECT_PAGE',
+        pageId: link.targetPageId,
+      });
+    }
+  };
 
   return (
     <div className={`canvas-node ${selected ? 'canvas-node--selected' : ''}`}>
@@ -95,6 +132,32 @@ export function ElementFrame({
       </div>
 
       <div className="canvas-node-body">{children}</div>
+
+      {links.length > 0 && (
+        <div className="canvas-node-links nodrag">
+          {links.map((link, idx) => {
+            const info = resolveLinkDisplay(link);
+            return (
+              <button
+                key={`${link.targetPageId}-${link.targetElementId ?? 'page'}-${idx}`}
+                type="button"
+                disabled={!info.valid}
+                className={`canvas-link-chip ${!info.valid ? 'canvas-link-chip--broken' : ''}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (info.valid) {
+                    handleNavigateLink(link);
+                  }
+                }}
+                title={info.valid ? `Перейти: ${info.text}` : 'Ціль посилання видалено'}
+              >
+                <ArrowUpRight size={11} />
+                <span>{info.text}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

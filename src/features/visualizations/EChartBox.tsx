@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import * as echarts from 'echarts/core';
-import { BarChart, LineChart } from 'echarts/charts';
+import { BarChart, LineChart, PieChart, ScatterChart } from 'echarts/charts';
 import {
   GridComponent,
   LegendComponent,
@@ -8,16 +8,54 @@ import {
 } from 'echarts/components';
 import { CanvasRenderer } from 'echarts/renderers';
 
-echarts.use([LineChart, BarChart, GridComponent, TooltipComponent, LegendComponent, CanvasRenderer]);
+echarts.use([
+  LineChart,
+  BarChart,
+  PieChart,
+  ScatterChart,
+  GridComponent,
+  TooltipComponent,
+  LegendComponent,
+  CanvasRenderer,
+]);
 
-interface EChartBoxProps {
-  chartType: 'line-chart' | 'bar-chart';
-  labels: string[];
-  values: number[];
-  seriesName: string;
-}
+const SERIES_PALETTE = [
+  '#7c5cff',
+  '#38bdf8',
+  '#34d399',
+  '#fbbf24',
+  '#f472b6',
+  '#a78bfa',
+  '#fb7185',
+];
 
-export function EChartBox({ chartType, labels, values, seriesName }: EChartBoxProps) {
+export type EChartPayload =
+  | {
+      kind: 'basic';
+      chartType: 'line-chart' | 'bar-chart' | 'histogram';
+      labels: string[];
+      values: number[];
+      seriesName: string;
+    }
+  | {
+      kind: 'pie';
+      items: Array<{ name: string; value: number }>;
+      isDonut: boolean;
+      seriesName: string;
+    }
+  | {
+      kind: 'stacked-bar';
+      xLabels: string[];
+      series: Array<{ name: string; data: number[] }>;
+    }
+  | {
+      kind: 'scatter';
+      points: Array<{ x: number; y: number; label: string }>;
+      xName: string;
+      yName: string;
+    };
+
+export function EChartBox({ payload }: { payload: EChartPayload }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const instanceRef = useRef<echarts.ECharts | null>(null);
 
@@ -48,59 +86,193 @@ export function EChartBox({ chartType, labels, values, seriesName }: EChartBoxPr
       return;
     }
 
-    const isLine = chartType === 'line-chart';
+    const baseTooltip = {
+      backgroundColor: '#171a22',
+      borderColor: 'rgba(255, 255, 255, 0.14)',
+      textStyle: {
+        color: '#eceef4',
+        fontSize: 11,
+      },
+    };
+
+    const axisStyle = {
+      axisLine: { lineStyle: { color: 'rgba(255, 255, 255, 0.12)' } },
+      axisTick: { show: false },
+      axisLabel: { color: '#8e96aa', fontSize: 10 },
+    };
+
+    const splitLine = {
+      lineStyle: { color: 'rgba(255, 255, 255, 0.06)' },
+    };
+
+    if (payload.kind === 'pie') {
+      chart.setOption(
+        {
+          animationDuration: 220,
+          backgroundColor: 'transparent',
+          color: SERIES_PALETTE,
+          tooltip: {
+            ...baseTooltip,
+            trigger: 'item',
+            formatter: '{b}: {c} ({d}%)',
+          },
+          legend: {
+            bottom: 0,
+            textStyle: { color: '#a1a7b8', fontSize: 10 },
+            type: 'scroll',
+          },
+          series: [
+            {
+              name: payload.seriesName,
+              type: 'pie',
+              radius: payload.isDonut ? ['44%', '72%'] : '70%',
+              center: ['50%', '44%'],
+              data: payload.items,
+              label: { show: false },
+              itemStyle: {
+                borderColor: '#101218',
+                borderWidth: 2,
+              },
+            },
+          ],
+        },
+        true,
+      );
+      return;
+    }
+
+    if (payload.kind === 'stacked-bar') {
+      chart.setOption(
+        {
+          animationDuration: 220,
+          backgroundColor: 'transparent',
+          color: SERIES_PALETTE,
+          tooltip: { ...baseTooltip, trigger: 'axis', axisPointer: { type: 'shadow' } },
+          legend: {
+            top: 0,
+            type: 'scroll',
+            textStyle: { color: '#a1a7b8', fontSize: 10 },
+          },
+          grid: { top: 28, right: 14, bottom: 26, left: 44 },
+          xAxis: {
+            type: 'category',
+            data: payload.xLabels,
+            ...axisStyle,
+            axisLabel: { ...axisStyle.axisLabel, overflow: 'truncate', width: 72 },
+          },
+          yAxis: {
+            type: 'value',
+            splitLine,
+            axisLabel: axisStyle.axisLabel,
+          },
+          series: payload.series.map((s) => ({
+            name: s.name,
+            type: 'bar',
+            stack: 'total',
+            barMaxWidth: 34,
+            data: s.data,
+          })),
+        },
+        true,
+      );
+      return;
+    }
+
+    if (payload.kind === 'scatter') {
+      chart.setOption(
+        {
+          animationDuration: 220,
+          backgroundColor: 'transparent',
+          tooltip: {
+            ...baseTooltip,
+            trigger: 'item',
+            formatter: (params: unknown) => {
+              const p = params as { data?: { value: [number, number]; name: string } };
+              if (!p.data) {
+                return '';
+              }
+              return `${p.data.name}<br/>${payload.xName}: ${p.data.value[0]}<br/>${payload.yName}: ${p.data.value[1]}`;
+            },
+          },
+          grid: { top: 16, right: 16, bottom: 28, left: 46 },
+          xAxis: {
+            type: 'value',
+            scale: true,
+            splitLine,
+            ...axisStyle,
+          },
+          yAxis: {
+            type: 'value',
+            scale: true,
+            splitLine,
+            axisLabel: axisStyle.axisLabel,
+          },
+          series: [
+            {
+              type: 'scatter',
+              symbolSize: 8,
+              itemStyle: {
+                color: '#8f73ff',
+                opacity: 0.88,
+              },
+              data: payload.points.map((pt) => ({
+                name: pt.label,
+                value: [pt.x, pt.y],
+              })),
+            },
+          ],
+        },
+        true,
+      );
+      return;
+    }
+
+    // basic: line-chart, bar-chart, histogram
+    const isLine = payload.chartType === 'line-chart';
+    const isHist = payload.chartType === 'histogram';
 
     chart.setOption(
       {
         animationDuration: 220,
         backgroundColor: 'transparent',
         grid: {
-          top: 16,
+          top: 14,
           right: 14,
           bottom: 28,
           left: 44,
           containLabel: false,
         },
         tooltip: {
+          ...baseTooltip,
           trigger: 'axis',
-          backgroundColor: '#171a22',
-          borderColor: 'rgba(255, 255, 255, 0.14)',
-          textStyle: {
-            color: '#eceef4',
-            fontSize: 11,
-          },
         },
         xAxis: {
           type: 'category',
-          data: labels,
-          axisLine: { lineStyle: { color: 'rgba(255, 255, 255, 0.12)' } },
-          axisTick: { show: false },
+          data: payload.labels,
+          ...axisStyle,
           axisLabel: {
-            color: '#8e96aa',
-            fontSize: 10,
+            ...axisStyle.axisLabel,
             overflow: 'truncate',
             width: 72,
           },
         },
         yAxis: {
           type: 'value',
-          splitLine: { lineStyle: { color: 'rgba(255, 255, 255, 0.06)' } },
-          axisLabel: {
-            color: '#8e96aa',
-            fontSize: 10,
-          },
+          splitLine,
+          axisLabel: axisStyle.axisLabel,
         },
         series: [
           {
-            name: seriesName,
+            name: payload.seriesName,
             type: isLine ? 'line' : 'bar',
-            data: values,
+            data: payload.values,
             smooth: isLine ? 0.2 : false,
             symbolSize: isLine ? 6 : undefined,
-            barMaxWidth: 34,
+            barMaxWidth: isHist ? undefined : 34,
+            barCategoryGap: isHist ? '4%' : undefined,
             itemStyle: {
               color: '#7c5cff',
-              borderRadius: isLine ? 0 : [4, 4, 0, 0],
+              borderRadius: isLine ? 0 : [3, 3, 0, 0],
             },
             lineStyle: isLine ? { width: 2, color: '#8f73ff' } : undefined,
             areaStyle: isLine
@@ -113,7 +285,7 @@ export function EChartBox({ chartType, labels, values, seriesName }: EChartBoxPr
       },
       true,
     );
-  }, [chartType, labels, values, seriesName]);
+  }, [payload]);
 
   return <div ref={containerRef} style={{ width: '100%', height: '100%', minHeight: 0 }} />;
 }

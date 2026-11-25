@@ -251,4 +251,137 @@ describe('TXT parser & serializer', () => {
     expect(parsed.errors.some((e) => e.line === 10)).toBe(true);
     expect(parsed.errors.some((e) => e.message.includes('[/ITEM]'))).toBe(true);
   });
+
+  it('round-trips Phase 2 elements (kanban, histogram, pie-chart, stacked-bar, scatter, pivot-table, kpi sparkline)', () => {
+    const project = createEmptyProject('Phase2RoundTrip', 'Analytics');
+    project.primaryDataset = {
+      id: 'ds_p2',
+      name: 'Items',
+      columns: [
+        { id: 'c_date', name: 'Date', type: 'date' },
+        { id: 'c_status', name: 'Status', type: 'text' },
+        { id: 'c_cat', name: 'Category', type: 'text' },
+        { id: 'c_val', name: 'Value', type: 'number' },
+        { id: 'c_cost', name: 'Cost', type: 'number' },
+      ],
+      rows: [
+        {
+          id: 'r1',
+          values: { c_date: '2026-01-01', c_status: 'Open', c_cat: 'X', c_val: '10', c_cost: '4' },
+        },
+      ],
+    };
+
+    project.canvases[0].elements = [
+      {
+        id: 'el_kpi',
+        type: 'kpi',
+        position: { x: 10, y: 10 },
+        size: { width: 220, height: 150 },
+        config: {
+          title: 'KPI',
+          valueFieldId: 'c_val',
+          aggregation: 'sum',
+          showSparkline: true,
+          sparklineOrderFieldId: 'c_date',
+        },
+      },
+      {
+        id: 'el_kanban',
+        type: 'kanban',
+        position: { x: 250, y: 10 },
+        size: { width: 520, height: 300 },
+        config: {
+          title: 'Board',
+          groupByFieldId: 'c_status',
+          titleFieldId: 'c_cat',
+          detailFieldIds: ['c_val'],
+        },
+      },
+      {
+        id: 'el_hist',
+        type: 'histogram',
+        position: { x: 10, y: 200 },
+        size: { width: 320, height: 220 },
+        config: { title: 'Hist', valueFieldId: 'c_val', binCount: 6 },
+      },
+      {
+        id: 'el_pie',
+        type: 'pie-chart',
+        position: { x: 350, y: 340 },
+        size: { width: 320, height: 240 },
+        config: {
+          title: 'Donut',
+          categoryFieldId: 'c_cat',
+          valueFieldId: 'c_val',
+          aggregation: 'sum',
+          isDonut: true,
+        },
+      },
+      {
+        id: 'el_stack',
+        type: 'stacked-bar',
+        position: { x: 700, y: 10 },
+        size: { width: 400, height: 260 },
+        config: {
+          title: 'Stacked',
+          xFieldId: 'c_date',
+          seriesFieldId: 'c_status',
+          yFieldId: 'c_val',
+          aggregation: 'sum',
+        },
+      },
+      {
+        id: 'el_scatter',
+        type: 'scatter',
+        position: { x: 700, y: 300 },
+        size: { width: 380, height: 260 },
+        config: {
+          title: 'Scatter',
+          xFieldId: 'c_val',
+          yFieldId: 'c_cost',
+          labelFieldId: 'c_cat',
+        },
+      },
+      {
+        id: 'el_pivot',
+        type: 'pivot-table',
+        position: { x: 10, y: 450 },
+        size: { width: 420, height: 240 },
+        config: {
+          title: 'Pivot',
+          rowFieldId: 'c_cat',
+          colFieldId: 'c_status',
+          valueFieldId: 'c_val',
+          aggregation: 'sum',
+        },
+      },
+    ];
+
+    const txt = serializeProjectTxt(project);
+    const parsed = parseTxtContent(txt);
+    expect(parsed.kind).toBe('project');
+    expect(parsed.errors).toEqual([]);
+    if (parsed.kind === 'project') {
+      expect(parsed.project.canvases[0].elements).toHaveLength(7);
+      expect(parsed.project.canvases[0].elements.map((e) => e.type)).toEqual([
+        'kpi',
+        'kanban',
+        'histogram',
+        'pie-chart',
+        'stacked-bar',
+        'scatter',
+        'pivot-table',
+      ]);
+      expect(parsed.project.canvases[0].elements[0].config).toEqual(
+        project.canvases[0].elements[0].config,
+      );
+      expect(parsed.project.canvases[0].elements[1].config).toEqual(
+        project.canvases[0].elements[1].config,
+      );
+      expect(parsed.project.canvases[0].elements[6].config).toEqual(
+        project.canvases[0].elements[6].config,
+      );
+    }
+  });
 });

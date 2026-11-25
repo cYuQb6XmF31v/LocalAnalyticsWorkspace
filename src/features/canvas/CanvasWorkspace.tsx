@@ -10,23 +10,30 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import {
+  BarChart2,
   BarChart3,
+  Columns3,
+  Grid3x3,
   Hash,
   LayoutTemplate,
   LineChart,
   Maximize2,
+  PieChart,
+  ScatterChart,
   StickyNote,
   Table,
 } from 'lucide-react';
 import { useProject } from '../../app/ProjectContext';
 import { createStableId } from '../../domain/id';
-import type { CanvasElement, CanvasElementType } from '../../domain/models';
+import type { CanvasElement, CanvasElementType, Dataset } from '../../domain/models';
 import { uk } from '../../i18n/uk';
 import { ElementConfigPanel } from './ElementConfigPanel';
 import { ChartNode } from './nodes/ChartNode';
 import type { CanvasFlowNode } from './nodes/ElementFrame';
+import { KanbanNode } from './nodes/KanbanNode';
 import { KpiNode } from './nodes/KpiNode';
 import { NoteNode } from './nodes/NoteNode';
+import { PivotTableNode } from './nodes/PivotTableNode';
 import { TableViewNode } from './nodes/TableViewNode';
 import './CanvasWorkspace.css';
 
@@ -39,18 +46,35 @@ const NODE_TYPES: NodeTypes = {
   kpi: KpiNode,
   'line-chart': ChartNode,
   'bar-chart': ChartNode,
+  histogram: ChartNode,
+  'pie-chart': ChartNode,
+  'stacked-bar': ChartNode,
+  scatter: ChartNode,
   'table-view': TableViewNode,
+  kanban: KanbanNode,
+  'pivot-table': PivotTableNode,
 };
 
 function createDefaultElement(
   type: CanvasElementType,
   indexOffset: number,
-  columnIds: string[],
-  firstNumericId: string | null,
-  firstTextOrDateId: string | null,
+  dataset: Dataset,
 ): CanvasElement {
   const offset = (indexOffset % 6) * 28;
   const basePos = { x: 60 + offset, y: 60 + offset };
+
+  const columnIds = dataset.columns.map((c) => c.id);
+  const numericCols = dataset.columns.filter((c) => c.type === 'number').map((c) => c.id);
+  const textCols = dataset.columns
+    .filter((c) => c.type === 'text' || c.type === 'boolean')
+    .map((c) => c.id);
+  const dateCol = dataset.columns.find((c) => c.type === 'date')?.id ?? null;
+
+  const firstNumeric = numericCols[0] ?? null;
+  const secondNumeric = numericCols[1] ?? firstNumeric;
+  const firstCategory = textCols[0] ?? columnIds[0] ?? null;
+  const secondCategory = textCols[1] ?? columnIds[1] ?? firstCategory;
+  const firstX = dateCol ?? firstCategory;
 
   switch (type) {
     case 'note':
@@ -66,11 +90,13 @@ function createDefaultElement(
         id: createStableId('el'),
         type: 'kpi',
         position: basePos,
-        size: { width: 230, height: 145 },
+        size: { width: 230, height: 155 },
         config: {
           title: 'Показник KPI',
-          valueFieldId: firstNumericId ?? columnIds[0] ?? null,
-          aggregation: firstNumericId ? 'sum' : 'count',
+          valueFieldId: firstNumeric ?? columnIds[0] ?? null,
+          aggregation: firstNumeric ? 'sum' : 'count',
+          showSparkline: false,
+          sparklineOrderFieldId: dateCol,
         },
       };
     case 'line-chart':
@@ -81,9 +107,9 @@ function createDefaultElement(
         size: { width: 420, height: 260 },
         config: {
           title: 'Лінійний графік',
-          xFieldId: firstTextOrDateId,
-          yFieldId: firstNumericId ?? firstTextOrDateId,
-          aggregation: firstNumericId ? 'sum' : 'count',
+          xFieldId: firstX,
+          yFieldId: firstNumeric ?? firstX,
+          aggregation: firstNumeric ? 'sum' : 'count',
         },
       };
     case 'bar-chart':
@@ -94,9 +120,89 @@ function createDefaultElement(
         size: { width: 420, height: 260 },
         config: {
           title: 'Стовпчиковий графік',
-          xFieldId: firstTextOrDateId,
-          yFieldId: firstNumericId ?? firstTextOrDateId,
-          aggregation: firstNumericId ? 'sum' : 'count',
+          xFieldId: firstX,
+          yFieldId: firstNumeric ?? firstX,
+          aggregation: firstNumeric ? 'sum' : 'count',
+        },
+      };
+    case 'histogram':
+      return {
+        id: createStableId('el'),
+        type: 'histogram',
+        position: basePos,
+        size: { width: 400, height: 250 },
+        config: {
+          title: 'Гістограма розподілу',
+          valueFieldId: firstNumeric,
+          binCount: 8,
+        },
+      };
+    case 'pie-chart':
+      return {
+        id: createStableId('el'),
+        type: 'pie-chart',
+        position: basePos,
+        size: { width: 340, height: 270 },
+        config: {
+          title: 'Кругова діаграма',
+          categoryFieldId: firstCategory,
+          valueFieldId: firstNumeric ?? firstCategory,
+          aggregation: firstNumeric ? 'sum' : 'count',
+          isDonut: true,
+        },
+      };
+    case 'stacked-bar':
+      return {
+        id: createStableId('el'),
+        type: 'stacked-bar',
+        position: basePos,
+        size: { width: 440, height: 280 },
+        config: {
+          title: 'Складений графік',
+          xFieldId: firstX,
+          seriesFieldId: secondCategory,
+          yFieldId: firstNumeric ?? firstCategory,
+          aggregation: firstNumeric ? 'sum' : 'count',
+        },
+      };
+    case 'scatter':
+      return {
+        id: createStableId('el'),
+        type: 'scatter',
+        position: basePos,
+        size: { width: 400, height: 270 },
+        config: {
+          title: 'Точкова діаграма',
+          xFieldId: firstNumeric,
+          yFieldId: secondNumeric,
+          labelFieldId: firstCategory,
+        },
+      };
+    case 'kanban':
+      return {
+        id: createStableId('el'),
+        type: 'kanban',
+        position: basePos,
+        size: { width: 580, height: 320 },
+        config: {
+          title: 'Kanban-дошка',
+          groupByFieldId: firstCategory,
+          titleFieldId: secondCategory,
+          detailFieldIds: firstNumeric ? [firstNumeric] : [],
+        },
+      };
+    case 'pivot-table':
+      return {
+        id: createStableId('el'),
+        type: 'pivot-table',
+        position: basePos,
+        size: { width: 480, height: 280 },
+        config: {
+          title: 'Зведена таблиця',
+          rowFieldId: firstCategory,
+          colFieldId: secondCategory !== firstCategory ? secondCategory : null,
+          valueFieldId: firstNumeric ?? firstCategory,
+          aggregation: firstNumeric ? 'sum' : 'count',
         },
       };
     case 'table-view':
@@ -128,7 +234,6 @@ function CanvasInner({ onOpenTemplates }: CanvasWorkspaceProps) {
     setConfigElementId((prev) => (prev === elementId ? null : elementId));
   }, []);
 
-  // Close config panel if the configured element was deleted or page changed
   useEffect(() => {
     if (
       configElementId &&
@@ -138,7 +243,6 @@ function CanvasInner({ onOpenTemplates }: CanvasWorkspaceProps) {
     }
   }, [activePage, configElementId]);
 
-  // Center/focus element when selected from the Navigator tree
   useEffect(() => {
     if (!state.selectedElementId || state.selectedElementId === lastFocusedSelectionRef.current) {
       return;
@@ -180,19 +284,7 @@ function CanvasInner({ onOpenTemplates }: CanvasWorkspaceProps) {
   );
 
   const handleAddElement = (type: CanvasElementType) => {
-    const columnIds = dataset.columns.map((c) => c.id);
-    const firstNumeric = dataset.columns.find((c) => c.type === 'number')?.id ?? null;
-    const firstX =
-      dataset.columns.find((c) => c.type === 'date' || c.type === 'text')?.id ??
-      columnIds[0] ??
-      null;
-    const element = createDefaultElement(
-      type,
-      activePage.elements.length,
-      columnIds,
-      firstNumeric,
-      firstX,
-    );
+    const element = createDefaultElement(type, activePage.elements.length, dataset);
     dispatch({
       type: 'ADD_ELEMENT',
       pageId: activePage.id,
@@ -247,10 +339,58 @@ function CanvasInner({ onOpenTemplates }: CanvasWorkspaceProps) {
           <button
             type="button"
             className="icon-btn icon-btn--outlined"
+            onClick={() => handleAddElement('histogram')}
+          >
+            <BarChart2 size={13} />
+            <span>{uk.canvas.addHistogram}</span>
+          </button>
+          <button
+            type="button"
+            className="icon-btn icon-btn--outlined"
+            onClick={() => handleAddElement('pie-chart')}
+          >
+            <PieChart size={13} />
+            <span>{uk.canvas.addPie}</span>
+          </button>
+          <button
+            type="button"
+            className="icon-btn icon-btn--outlined"
+            onClick={() => handleAddElement('stacked-bar')}
+          >
+            <BarChart3 size={13} />
+            <span>{uk.canvas.addStackedBar}</span>
+          </button>
+          <button
+            type="button"
+            className="icon-btn icon-btn--outlined"
+            onClick={() => handleAddElement('scatter')}
+          >
+            <ScatterChart size={13} />
+            <span>{uk.canvas.addScatter}</span>
+          </button>
+          <button
+            type="button"
+            className="icon-btn icon-btn--outlined"
             onClick={() => handleAddElement('table-view')}
           >
             <Table size={13} />
             <span>{uk.canvas.addTable}</span>
+          </button>
+          <button
+            type="button"
+            className="icon-btn icon-btn--outlined"
+            onClick={() => handleAddElement('pivot-table')}
+          >
+            <Grid3x3 size={13} />
+            <span>{uk.canvas.addPivot}</span>
+          </button>
+          <button
+            type="button"
+            className="icon-btn icon-btn--outlined"
+            onClick={() => handleAddElement('kanban')}
+          >
+            <Columns3 size={13} />
+            <span>{uk.canvas.addKanban}</span>
           </button>
         </div>
 

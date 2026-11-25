@@ -49,6 +49,12 @@ const VALID_ELEMENT_TYPES: readonly CanvasElementType[] = [
   'line-chart',
   'bar-chart',
   'table-view',
+  'kanban',
+  'histogram',
+  'pie-chart',
+  'stacked-bar',
+  'scatter',
+  'pivot-table',
 ];
 
 interface ParsedRecord {
@@ -177,16 +183,19 @@ function parseColumnsDeclaration(
   line: number,
   rawSpec: string,
   rawIdsSpec?: string,
+  allowEmpty = false,
 ): { columns: Column[]; errors: TxtIssue[] } {
   const errors: TxtIssue[] = [];
   const parts = rawSpec.split(';').map((p) => p.trim());
   const idParts = rawIdsSpec ? rawIdsSpec.split(';').map((p) => p.trim()) : null;
 
   if (parts.length === 0 || (parts.length === 1 && parts[0] === '')) {
-    errors.push({
-      line,
-      message: 'Оголошення # Columns: не може бути порожнім.',
-    });
+    if (!allowEmpty) {
+      errors.push({
+        line,
+        message: 'Оголошення # Columns: не може бути порожнім.',
+      });
+    }
     return { columns: [], errors };
   }
 
@@ -364,6 +373,16 @@ function resolveFieldReference(
   return byName ? byName.id : rawRef;
 }
 
+function parseAgg(rawAgg: unknown, fallback: 'sum' | 'count' = 'sum') {
+  return rawAgg === 'sum' ||
+    rawAgg === 'avg' ||
+    rawAgg === 'count' ||
+    rawAgg === 'min' ||
+    rawAgg === 'max'
+    ? rawAgg
+    : fallback;
+}
+
 function normalizeElementConfig(
   elementType: CanvasElementType,
   rawConfig: Record<string, unknown>,
@@ -380,31 +399,91 @@ function normalizeElementConfig(
 
   if (elementType === 'kpi') {
     const rawField = rawConfig.valueFieldId ?? rawConfig.valueField;
-    const rawAgg = rawConfig.aggregation;
-    const aggregation =
-      rawAgg === 'sum' || rawAgg === 'avg' || rawAgg === 'count' || rawAgg === 'min' || rawAgg === 'max'
-        ? rawAgg
-        : 'count';
+    const rawSpark = rawConfig.sparklineOrderFieldId;
     return {
       title: title || 'KPI',
       valueFieldId: resolveFieldReference(rawField, columns),
-      aggregation,
+      aggregation: parseAgg(rawConfig.aggregation, 'count'),
+      ...(typeof rawConfig.showSparkline === 'boolean'
+        ? { showSparkline: rawConfig.showSparkline }
+        : {}),
+      ...(rawSpark !== undefined
+        ? { sparklineOrderFieldId: resolveFieldReference(rawSpark, columns) }
+        : {}),
     };
   }
 
   if (elementType === 'line-chart' || elementType === 'bar-chart') {
     const rawX = rawConfig.xFieldId ?? rawConfig.xField;
     const rawY = rawConfig.yFieldId ?? rawConfig.yField;
-    const rawAgg = rawConfig.aggregation;
-    const aggregation =
-      rawAgg === 'sum' || rawAgg === 'avg' || rawAgg === 'count' || rawAgg === 'min' || rawAgg === 'max'
-        ? rawAgg
-        : 'sum';
     return {
       title: title || (elementType === 'line-chart' ? 'Лінійний графік' : 'Стовпчиковий графік'),
       xFieldId: resolveFieldReference(rawX, columns),
       yFieldId: resolveFieldReference(rawY, columns),
-      aggregation,
+      aggregation: parseAgg(rawConfig.aggregation, 'sum'),
+    };
+  }
+
+  if (elementType === 'kanban') {
+    const rawDetails = Array.isArray(rawConfig.detailFieldIds) ? rawConfig.detailFieldIds : [];
+    return {
+      title: title || 'Kanban',
+      groupByFieldId: resolveFieldReference(rawConfig.groupByFieldId, columns),
+      titleFieldId: resolveFieldReference(rawConfig.titleFieldId, columns),
+      detailFieldIds: rawDetails
+        .map((item) => resolveFieldReference(item, columns))
+        .filter((id): id is string => id !== null),
+    };
+  }
+
+  if (elementType === 'histogram') {
+    const rawBins =
+      typeof rawConfig.binCount === 'number' && Number.isFinite(rawConfig.binCount)
+        ? Math.max(2, Math.min(30, Math.floor(rawConfig.binCount)))
+        : 8;
+    return {
+      title: title || 'Гістограма',
+      valueFieldId: resolveFieldReference(rawConfig.valueFieldId, columns),
+      binCount: rawBins,
+    };
+  }
+
+  if (elementType === 'pie-chart') {
+    return {
+      title: title || 'Кругова діаграма',
+      categoryFieldId: resolveFieldReference(rawConfig.categoryFieldId, columns),
+      valueFieldId: resolveFieldReference(rawConfig.valueFieldId, columns),
+      aggregation: parseAgg(rawConfig.aggregation, 'count'),
+      isDonut: Boolean(rawConfig.isDonut),
+    };
+  }
+
+  if (elementType === 'stacked-bar') {
+    return {
+      title: title || 'Складений графік',
+      xFieldId: resolveFieldReference(rawConfig.xFieldId, columns),
+      seriesFieldId: resolveFieldReference(rawConfig.seriesFieldId, columns),
+      yFieldId: resolveFieldReference(rawConfig.yFieldId, columns),
+      aggregation: parseAgg(rawConfig.aggregation, 'sum'),
+    };
+  }
+
+  if (elementType === 'scatter') {
+    return {
+      title: title || 'Точкова діаграма',
+      xFieldId: resolveFieldReference(rawConfig.xFieldId, columns),
+      yFieldId: resolveFieldReference(rawConfig.yFieldId, columns),
+      labelFieldId: resolveFieldReference(rawConfig.labelFieldId, columns),
+    };
+  }
+
+  if (elementType === 'pivot-table') {
+    return {
+      title: title || 'Зведена таблиця',
+      rowFieldId: resolveFieldReference(rawConfig.rowFieldId, columns),
+      colFieldId: resolveFieldReference(rawConfig.colFieldId, columns),
+      valueFieldId: resolveFieldReference(rawConfig.valueFieldId, columns),
+      aggregation: parseAgg(rawConfig.aggregation, 'sum'),
     };
   }
 
@@ -614,9 +693,21 @@ function parseFullProjectTxt(lines: string[]): ParsedProjectImport {
           message: 'У секції [DATASET] відсутній рядок # Columns:.',
         });
       } else {
-        const colRes = parseColumnsDeclaration(columnsLine.line, columnsLine.value, columnIdsLine);
+        const colRes = parseColumnsDeclaration(
+          columnsLine.line,
+          columnsLine.value,
+          columnIdsLine,
+          true,
+        );
         errors.push(...colRes.errors);
         columns = colRes.columns;
+      }
+
+      if (columns.length === 0 && bodyResult.records.length > 0) {
+        errors.push({
+          line: bodyResult.records[0].startLine,
+          message: 'Знайдено рядки даних при порожньому оголошенні # Columns:.',
+        });
       }
 
       const rows =

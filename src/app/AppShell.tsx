@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { Modal } from '../components/Modal';
 import { CanvasWorkspace } from '../features/canvas/CanvasWorkspace';
+import { GraphViewPage } from '../features/canvas/GraphViewPage';
 import { ProjectTree } from '../features/canvas/ProjectTree';
 import { TemplateChooserModal } from '../features/canvas/TemplateChooserModal';
 import { buildPagesFromTemplate, type CanvasTemplateId } from '../features/canvas/templates';
@@ -40,7 +41,7 @@ import { useProject } from './ProjectContext';
 import './AppShell.css';
 
 type MobilePane = 'navigator' | 'canvas' | 'sourceData';
-type ActiveView = 'workspace' | 'help';
+type ActiveView = 'workspace' | 'graph' | 'help';
 type ResizeTarget = 'nav' | 'source';
 
 const NAV_MIN_WIDTH = 190;
@@ -65,9 +66,18 @@ export function AppShell() {
   const [sourceWidth, setSourceWidth] = useState(SOURCE_DEFAULT_WIDTH);
   const [resizingTarget, setResizingTarget] = useState<ResizeTarget | null>(null);
   const [mobilePane, setMobilePane] = useState<MobilePane>('canvas');
-  const [activeView, setActiveView] = useState<ActiveView>(() =>
-    typeof window !== 'undefined' && window.location.hash === '#help' ? 'help' : 'workspace',
-  );
+  const [activeView, setActiveView] = useState<ActiveView>(() => {
+    if (typeof window === 'undefined') {
+      return 'workspace';
+    }
+    if (window.location.hash === '#help') {
+      return 'help';
+    }
+    if (window.location.hash === '#graph') {
+      return 'graph';
+    }
+    return 'workspace';
+  });
 
   const [pendingImport, setPendingImport] = useState<PendingImport | null>(null);
   const [isTemplateChooserOpen, setIsTemplateChooserOpen] = useState(false);
@@ -86,7 +96,13 @@ export function AppShell() {
 
   useEffect(() => {
     const syncFromHash = () => {
-      setActiveView(window.location.hash === '#help' ? 'help' : 'workspace');
+      if (window.location.hash === '#help') {
+        setActiveView('help');
+      } else if (window.location.hash === '#graph') {
+        setActiveView('graph');
+      } else {
+        setActiveView('workspace');
+      }
     };
     window.addEventListener('hashchange', syncFromHash);
     return () => window.removeEventListener('hashchange', syncFromHash);
@@ -95,7 +111,7 @@ export function AppShell() {
   const navigateTo = useCallback((view: ActiveView) => {
     setActiveView(view);
     if (typeof window !== 'undefined') {
-      const nextHash = view === 'help' ? '#help' : '#workspace';
+      const nextHash = view === 'help' ? '#help' : view === 'graph' ? '#graph' : '#workspace';
       if (window.location.hash !== nextHash) {
         window.history.replaceState(null, '', nextHash);
       }
@@ -513,11 +529,16 @@ export function AppShell() {
                   </div>
 
                   <ProjectTree
+                    onOpenGraph={() => {
+                      navigateTo(activeView === 'graph' ? 'workspace' : 'graph');
+                      setMobilePane('canvas');
+                    }}
                     onOpenHelp={() => navigateTo('help')}
                     onNavigateToCanvas={() => {
                       navigateTo('workspace');
                       setMobilePane('canvas');
                     }}
+                    isGraphActive={activeView === 'graph'}
                     isHelpActive={false}
                   />
                 </aside>
@@ -543,7 +564,11 @@ export function AppShell() {
               className={`pane-canvas ${mobilePane !== 'canvas' ? 'pane--hidden-mobile' : ''}`}
               aria-label={uk.canvas.title}
             >
-              <CanvasWorkspace onOpenTemplates={() => setIsTemplateChooserOpen(true)} />
+              {activeView === 'graph' ? (
+                <GraphViewPage onBackToWorkspace={() => navigateTo('workspace')} />
+              ) : (
+                <CanvasWorkspace onOpenTemplates={() => setIsTemplateChooserOpen(true)} />
+              )}
             </section>
 
             {isSourceOpen && (

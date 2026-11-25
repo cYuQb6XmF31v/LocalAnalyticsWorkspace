@@ -21,7 +21,7 @@ export interface ColumnReference {
   pageName: string;
   elementId: string;
   elementTitle: string;
-  fieldRole: 'valueFieldId' | 'xFieldId' | 'yFieldId' | 'columnIds';
+  fieldRole: string;
 }
 
 export function createEmptyDataset(name = 'Source Data'): Dataset {
@@ -230,43 +230,43 @@ export function deleteRow(dataset: Dataset, rowId: string): Dataset {
 export function findColumnReferences(project: Project, columnId: string): ColumnReference[] {
   const refs: ColumnReference[] = [];
 
+  const pushRef = (
+    pageId: string,
+    pageName: string,
+    elementId: string,
+    elementTitle: string,
+    fieldRole: string,
+  ) => {
+    refs.push({ pageId, pageName, elementId, elementTitle, fieldRole });
+  };
+
   for (const page of project.canvases) {
     for (const element of page.elements) {
-      if (element.type === 'kpi' && element.config.valueFieldId === columnId) {
-        refs.push({
-          pageId: page.id,
-          pageName: page.name,
-          elementId: element.id,
-          elementTitle: element.config.title,
-          fieldRole: 'valueFieldId',
-        });
-      } else if (element.type === 'line-chart' || element.type === 'bar-chart') {
-        if (element.config.xFieldId === columnId) {
-          refs.push({
-            pageId: page.id,
-            pageName: page.name,
-            elementId: element.id,
-            elementTitle: element.config.title,
-            fieldRole: 'xFieldId',
-          });
+      const cfg = element.config as unknown as Record<string, unknown>;
+      const singleFields = [
+        'valueFieldId',
+        'sparklineOrderFieldId',
+        'xFieldId',
+        'yFieldId',
+        'groupByFieldId',
+        'titleFieldId',
+        'categoryFieldId',
+        'seriesFieldId',
+        'labelFieldId',
+        'rowFieldId',
+        'colFieldId',
+      ];
+      for (const role of singleFields) {
+        if (cfg[role] === columnId) {
+          pushRef(page.id, page.name, element.id, element.config.title, role);
         }
-        if (element.config.yFieldId === columnId) {
-          refs.push({
-            pageId: page.id,
-            pageName: page.name,
-            elementId: element.id,
-            elementTitle: element.config.title,
-            fieldRole: 'yFieldId',
-          });
+      }
+      const listFields = ['columnIds', 'detailFieldIds'];
+      for (const role of listFields) {
+        const list = cfg[role];
+        if (Array.isArray(list) && list.includes(columnId)) {
+          pushRef(page.id, page.name, element.id, element.config.title, role);
         }
-      } else if (element.type === 'table-view' && element.config.columnIds.includes(columnId)) {
-        refs.push({
-          pageId: page.id,
-          pageName: page.name,
-          elementId: element.id,
-          elementTitle: element.config.title,
-          fieldRole: 'columnIds',
-        });
       }
     }
   }

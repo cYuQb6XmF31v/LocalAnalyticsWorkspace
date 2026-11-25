@@ -1,7 +1,7 @@
 export const uk = {
   app: {
     name: 'Local Analytics Workspace',
-    stageBadge: 'Phase 1 · MVP',
+    stageBadge: 'Phase 2 · Аналітика',
     localOnlyNotice: 'Локально в браузері',
     projectPlaceholder: 'Новий проєкт',
     unsavedChanges: 'Незбережені зміни',
@@ -14,6 +14,7 @@ export const uk = {
     newProject: 'Новий проєкт',
     importTxt: 'Імпорт TXT',
     exportTxt: 'Експорт TXT',
+    graphView: 'Граф зв’язків',
     help: 'Довідка',
     confirmNewProjectTitle: 'Створити новий порожній проєкт?',
     confirmNewProjectBody:
@@ -50,6 +51,12 @@ export const uk = {
     addLine: 'Лінія',
     addBar: 'Стовпчики',
     addTable: 'Таблиця',
+    addKanban: 'Kanban',
+    addHistogram: 'Гістограма',
+    addPie: 'Кругова',
+    addStackedBar: 'Складений',
+    addScatter: 'Scatter',
+    addPivot: 'Зведена',
     templatesBtn: 'Шаблони',
     fitView: 'Вписати в екран',
     emptyPageText:

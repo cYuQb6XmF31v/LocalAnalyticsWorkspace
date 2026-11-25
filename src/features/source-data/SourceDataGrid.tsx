@@ -12,6 +12,7 @@ import { Modal } from '../../components/Modal';
 import type { Column, ColumnType } from '../../domain/models';
 import { uk } from '../../i18n/uk';
 import { findColumnReferences, type ColumnReference } from './datasetOps';
+import { ActivityHeatmapPanel } from './ActivityHeatmapPanel';
 import {
   cellValueToInputString,
   SUPPORTED_COLUMN_TYPES,
@@ -370,6 +371,8 @@ export function SourceDataGrid({ onRequestImportTxt }: SourceDataGridProps) {
           )}
         </div>
       )}
+
+      <ActivityHeatmapPanel />
 
       {pendingDelete && (
         <Modal

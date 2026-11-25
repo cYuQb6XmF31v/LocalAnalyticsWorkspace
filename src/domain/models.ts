@@ -38,7 +38,18 @@ export interface Size {
   height: number;
 }
 
-export type CanvasElementType = 'note' | 'kpi' | 'line-chart' | 'bar-chart' | 'table-view';
+export type CanvasElementType =
+  | 'note'
+  | 'kpi'
+  | 'line-chart'
+  | 'bar-chart'
+  | 'table-view'
+  | 'kanban'
+  | 'histogram'
+  | 'pie-chart'
+  | 'stacked-bar'
+  | 'scatter'
+  | 'pivot-table';
 
 export type KpiAggregation = 'sum' | 'avg' | 'count' | 'min' | 'max';
 
@@ -53,6 +64,8 @@ export interface KpiElementConfig {
   title: string;
   valueFieldId: string | null;
   aggregation: KpiAggregation;
+  showSparkline?: boolean;
+  sparklineOrderFieldId?: string | null;
 }
 
 export interface ChartElementConfig {
@@ -68,11 +81,61 @@ export interface TableViewElementConfig {
   maxRows?: number;
 }
 
+export interface KanbanElementConfig {
+  title: string;
+  groupByFieldId: string | null;
+  titleFieldId: string | null;
+  detailFieldIds: string[];
+}
+
+export interface HistogramElementConfig {
+  title: string;
+  valueFieldId: string | null;
+  binCount: number;
+}
+
+export interface PieChartElementConfig {
+  title: string;
+  categoryFieldId: string | null;
+  valueFieldId: string | null;
+  aggregation: ChartAggregation;
+  isDonut: boolean;
+}
+
+export interface StackedBarElementConfig {
+  title: string;
+  xFieldId: string | null;
+  seriesFieldId: string | null;
+  yFieldId: string | null;
+  aggregation: ChartAggregation;
+}
+
+export interface ScatterElementConfig {
+  title: string;
+  xFieldId: string | null;
+  yFieldId: string | null;
+  labelFieldId: string | null;
+}
+
+export interface PivotTableElementConfig {
+  title: string;
+  rowFieldId: string | null;
+  colFieldId: string | null;
+  valueFieldId: string | null;
+  aggregation: ChartAggregation;
+}
+
 export type CanvasElementConfig =
   | NoteElementConfig
   | KpiElementConfig
   | ChartElementConfig
-  | TableViewElementConfig;
+  | TableViewElementConfig
+  | KanbanElementConfig
+  | HistogramElementConfig
+  | PieChartElementConfig
+  | StackedBarElementConfig
+  | ScatterElementConfig
+  | PivotTableElementConfig;
 
 export interface ElementLink {
   targetPageId: string;
@@ -95,13 +158,25 @@ export type KpiCanvasElement = CanvasElementBase<'kpi', KpiElementConfig>;
 export type LineChartCanvasElement = CanvasElementBase<'line-chart', ChartElementConfig>;
 export type BarChartCanvasElement = CanvasElementBase<'bar-chart', ChartElementConfig>;
 export type TableViewCanvasElement = CanvasElementBase<'table-view', TableViewElementConfig>;
+export type KanbanCanvasElement = CanvasElementBase<'kanban', KanbanElementConfig>;
+export type HistogramCanvasElement = CanvasElementBase<'histogram', HistogramElementConfig>;
+export type PieChartCanvasElement = CanvasElementBase<'pie-chart', PieChartElementConfig>;
+export type StackedBarCanvasElement = CanvasElementBase<'stacked-bar', StackedBarElementConfig>;
+export type ScatterCanvasElement = CanvasElementBase<'scatter', ScatterElementConfig>;
+export type PivotTableCanvasElement = CanvasElementBase<'pivot-table', PivotTableElementConfig>;
 
 export type CanvasElement =
   | NoteCanvasElement
   | KpiCanvasElement
   | LineChartCanvasElement
   | BarChartCanvasElement
-  | TableViewCanvasElement;
+  | TableViewCanvasElement
+  | KanbanCanvasElement
+  | HistogramCanvasElement
+  | PieChartCanvasElement
+  | StackedBarCanvasElement
+  | ScatterCanvasElement
+  | PivotTableCanvasElement;
 
 export interface CanvasPage {
   id: string;

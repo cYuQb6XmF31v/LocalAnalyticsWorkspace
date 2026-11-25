@@ -85,3 +85,40 @@
   color: var(--text-primary);
   cursor: pointer;
 }
+
+.config-divider {
+  height: 1px;
+  background-color: var(--border-subtle);
+  margin: 4px 0;
+}
+
+.config-links-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.config-link-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 4px 6px;
+  border-radius: var(--radius-sm);
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  font-size: 11px;
+}
+
+.config-link-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--accent-text);
+}
+
+.config-link-add-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}

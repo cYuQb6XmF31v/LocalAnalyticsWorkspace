@@ -6,6 +6,7 @@ import type {
   CellValue,
   ColumnType,
   Dataset,
+  ElementLink,
   Position,
   Project,
   Size,
@@ -81,6 +82,7 @@ export type ProjectAction =
   | { type: 'SET_PAGE_VIEWPORT'; pageId: string; viewport: Viewport }
   | { type: 'ADD_ELEMENT'; pageId: string; element: CanvasElement; select?: boolean }
   | { type: 'UPDATE_ELEMENT_CONFIG'; pageId: string; elementId: string; config: CanvasElementConfig }
+  | { type: 'UPDATE_ELEMENT_LINKS'; pageId: string; elementId: string; links: ElementLink[] }
   | { type: 'MOVE_ELEMENT'; pageId: string; elementId: string; position: Position }
   | { type: 'RESIZE_ELEMENT'; pageId: string; elementId: string; size: Size; position?: Position }
   | { type: 'DELETE_ELEMENT'; pageId: string; elementId: string }
@@ -334,6 +336,21 @@ export function projectReducer(state: WorkspaceState, action: ProjectAction): Wo
             ? ({ ...el, config: action.config } as CanvasElement)
             : el,
         ),
+      }));
+
+    case 'UPDATE_ELEMENT_LINKS':
+      return updatePageInProject(state, action.pageId, (page) => ({
+        ...page,
+        elements: page.elements.map((el) => {
+          if (el.id !== action.elementId) {
+            return el;
+          }
+          if (action.links.length === 0) {
+            const { links: _removed, ...rest } = el;
+            return rest as CanvasElement;
+          }
+          return { ...el, links: action.links };
+        }),
       }));
 
     case 'MOVE_ELEMENT':
