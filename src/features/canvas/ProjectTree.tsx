@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   BarChart2,
   BarChart3,
@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 import { useProject } from '../../app/ProjectContext';
 import { Modal } from '../../components/Modal';
-import type { CanvasElementType, CanvasPage } from '../../domain/models';
+import type { CanvasElement, CanvasElementType, CanvasPage } from '../../domain/models';
 import { uk } from '../../i18n/uk';
 import './ProjectTree.css';
 
@@ -67,12 +67,21 @@ export function ProjectTree({
   isHelpActive,
 }: ProjectTreeProps) {
   const { state, dispatch } = useProject();
-  const { project, activePageId, selectedElementId } = state;
+  const { project, activePageId, selectedElementId, selectedElementIds } = state;
+  const activeSelectedIds =
+    selectedElementIds && selectedElementIds.length > 0
+      ? selectedElementIds
+      : selectedElementId
+        ? [selectedElementId]
+        : [];
 
   const [collapsedPages, setCollapsedPages] = useState<Record<string, boolean>>({});
   const [renamingPageId, setRenamingPageId] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState('');
+  const [renamingElementId, setRenamingElementId] = useState<string | null>(null);
+  const [elementRenameDraft, setElementRenameDraft] = useState('');
   const [confirmDeletePage, setConfirmDeletePage] = useState<CanvasPage | null>(null);
+  const selectionAnchorRef = useRef<string | null>(null);
 
   const toggleExpand = (pageId: string) => {
     setCollapsedPages((prev) => ({ ...prev, [pageId]: !prev[pageId] }));
@@ -103,6 +112,74 @@ export function ProjectTree({
       dispatch({ type: 'RENAME_PAGE', pageId, name: trimmed });
     }
     setRenamingPageId(null);
+  };
+
+  const commitElementRename = (pageId: string, element: CanvasElement) => {
+    const trimmed = elementRenameDraft.trim();
+    if (trimmed && trimmed !== element.config.title) {
+      dispatch({
+        type: 'UPDATE_ELEMENT_CONFIG',
+        pageId,
+        elementId: element.id,
+        config: {
+          ...element.config,
+          title: trimmed,
+        },
+      });
+    }
+    setRenamingElementId(null);
+  };
+
+  const handleElementClick = (
+    event: React.MouseEvent,
+    page: CanvasPage,
+    elId: string,
+  ) => {
+    const isSamePage = activePageId === page.id;
+    const isCtrl = event.ctrlKey || event.metaKey;
+    const isShift = event.shiftKey;
+
+    if (isShift && isSamePage && selectionAnchorRef.current) {
+      const anchorIdx = page.elements.findIndex((e) => e.id === selectionAnchorRef.current);
+      const targetIdx = page.elements.findIndex((e) => e.id === elId);
+      if (anchorIdx !== -1 && targetIdx !== -1) {
+        const start = Math.min(anchorIdx, targetIdx);
+        const end = Math.max(anchorIdx, targetIdx);
+        const rangeIds = page.elements.slice(start, end + 1).map((e) => e.id);
+        dispatch({
+          type: 'SELECT_ELEMENTS',
+          elementIds: rangeIds,
+          primaryId: elId,
+          pageId: page.id,
+        });
+        onNavigateToCanvas();
+        return;
+      }
+    }
+
+    if (isCtrl && isSamePage) {
+      const exists = activeSelectedIds.includes(elId);
+      const nextIds = exists
+        ? activeSelectedIds.filter((id) => id !== elId)
+        : [...activeSelectedIds, elId];
+      selectionAnchorRef.current = elId;
+      dispatch({
+        type: 'SELECT_ELEMENTS',
+        elementIds: nextIds,
+        primaryId: exists ? (nextIds[nextIds.length - 1] ?? null) : elId,
+        pageId: page.id,
+      });
+      onNavigateToCanvas();
+      return;
+    }
+
+    selectionAnchorRef.current = elId;
+    dispatch({
+      type: 'SELECT_ELEMENT',
+      elementId: elId,
+      pageId: page.id,
+    });
+    onNavigateToCanvas();
   };
 
   return (
@@ -162,6 +239,11 @@ export function ProjectTree({
                       dispatch({ type: 'SELECT_PAGE', pageId: page.id });
                       onNavigateToCanvas();
                     }}
+                    onDoubleClick={() => {
+                      setRenamingPageId(page.id);
+                      setRenameDraft(page.name);
+                    }}
+                    title="Клік — перейти · Подвійний клік — перейменувати"
                   >
                     <LayoutGrid size={12} />
                     <span className="pt-page-label">{page.name}</span>
@@ -197,24 +279,64 @@ export function ProjectTree({
                 <div className="pt-elements">
                   {page.elements.map((el) => {
                     const isElSelected =
-                      !isGraphActive && !isHelpActive && selectedElementId === el.id;
+                      !isGraphActive && !isHelpActive && activeSelectedIds.includes(el.id);
+                    const isElRenaming = renamingElementId === el.id;
+
                     return (
-                      <button
+                      <div
                         key={el.id}
-                        type="button"
-                        className={`pt-el-btn ${isElSelected ? 'pt-el-btn--active' : ''}`}
-                        onClick={() => {
-                          dispatch({
-                            type: 'SELECT_ELEMENT',
-                            elementId: el.id,
-                            pageId: page.id,
-                          });
-                          onNavigateToCanvas();
-                        }}
+                        className={`pt-el-row ${isElSelected ? 'pt-el-row--active' : ''}`}
                       >
-                        {getElementIcon(el.type)}
-                        <span className="pt-page-label">{el.config.title || el.id}</span>
-                      </button>
+                        {isElRenaming ? (
+                          <input
+                            type="text"
+                            className="pt-rename-input"
+                            value={elementRenameDraft}
+                            autoFocus
+                            onChange={(e) => setElementRenameDraft(e.target.value)}
+                            onBlur={() => commitElementRename(page.id, el)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                commitElementRename(page.id, el);
+                              } else if (e.key === 'Escape') {
+                                setRenamingElementId(null);
+                              }
+                            }}
+                          />
+                        ) : (
+                          <button
+                            type="button"
+                            className="pt-el-btn"
+                            onClick={(e) => handleElementClick(e, page, el.id)}
+                            onDoubleClick={(e) => {
+                              e.stopPropagation();
+                              setRenamingElementId(el.id);
+                              setElementRenameDraft(el.config.title || el.id);
+                            }}
+                            title="Клік — обрати (Ctrl/Shift для мульти-вибору) · Подвійний клік — перейменувати"
+                          >
+                            {getElementIcon(el.type)}
+                            <span className="pt-page-label">{el.config.title || el.id}</span>
+                          </button>
+                        )}
+
+                        <button
+                          type="button"
+                          className="sd-mini-btn sd-mini-btn--danger pt-el-del-btn"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            dispatch({
+                              type: 'DELETE_ELEMENT',
+                              pageId: page.id,
+                              elementId: el.id,
+                            });
+                          }}
+                          aria-label={`Видалити елемент ${el.config.title || el.id}`}
+                          title="Видалити елемент"
+                        >
+                          <Trash2 size={11} />
+                        </button>
+                      </div>
                     );
                   })}
                 </div>

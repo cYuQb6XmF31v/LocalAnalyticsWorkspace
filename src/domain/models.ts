@@ -212,6 +212,7 @@ export interface WorkspaceState {
   project: Project;
   activePageId: string;
   selectedElementId: string | null;
+  selectedElementIds?: string[];
   dirtySinceLastExport: boolean;
   needsLayoutChooser: boolean;
 }

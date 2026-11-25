@@ -1,4 +1,12 @@
-import { LayoutGrid, LineChart, Square } from 'lucide-react';
+import {
+  BarChart2,
+  Columns3,
+  Layers,
+  LayoutGrid,
+  LineChart,
+  PieChart,
+  Square,
+} from 'lucide-react';
 import { Modal } from '../../components/Modal';
 import { uk } from '../../i18n/uk';
 import { CANVAS_TEMPLATES, type CanvasTemplateId } from './templates';
@@ -13,6 +21,10 @@ const TEMPLATE_ICONS: Record<CanvasTemplateId, typeof Square> = {
   blank: Square,
   overview: LayoutGrid,
   trends: LineChart,
+  categories: PieChart,
+  operations: Columns3,
+  distribution: BarChart2,
+  executive: Layers,
 };
 
 export function TemplateChooserModal({ onSelect, onClose }: TemplateChooserModalProps) {

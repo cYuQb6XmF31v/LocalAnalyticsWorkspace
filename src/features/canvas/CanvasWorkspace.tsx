@@ -25,6 +25,7 @@ import {
   Magnet,
   Maximize2,
   PieChart,
+  Plus,
   RotateCcw,
   ScatterChart,
   Settings2,
@@ -36,6 +37,7 @@ import { useProject } from '../../app/ProjectContext';
 import { createStableId } from '../../domain/id';
 import type { CanvasElement, CanvasElementType, Dataset, Position } from '../../domain/models';
 import { uk } from '../../i18n/uk';
+import { CanvasSnapContext, type ResizeRect } from './canvasSnapContext';
 import { ElementConfigPanel } from './ElementConfigPanel';
 import { ChartNode } from './nodes/ChartNode';
 import type { CanvasFlowNode } from './nodes/ElementFrame';
@@ -384,12 +386,128 @@ function createDefaultElement(
   }
 }
 
+function computeResizeSnap(
+  resizedId: string,
+  raw: ResizeRect,
+  orig: ResizeRect,
+  otherNodes: CanvasFlowNode[],
+): { rect: ResizeRect; guides: SnapGuideLine[]; badge: { label: string; pos: Position } | null } {
+  const leftMoved = Math.abs(raw.x - orig.x) > 0.5;
+  const topMoved = Math.abs(raw.y - orig.y) > 0.5;
+
+  const rawLeft = raw.x;
+  const rawRight = raw.x + raw.width;
+  const rawTop = raw.y;
+  const rawBottom = raw.y + raw.height;
+
+  let bestDx = SNAP_THRESHOLD + 1;
+  let snappedX = raw.x;
+  let snappedW = raw.width;
+  let matchedX: { pos: number; otherTop: number; otherBottom: number } | null = null;
+
+  let bestDy = SNAP_THRESHOLD + 1;
+  let snappedY = raw.y;
+  let snappedH = raw.height;
+  let matchedY: { pos: number; otherLeft: number; otherRight: number } | null = null;
+
+  for (const other of otherNodes) {
+    if (other.id === resizedId) {
+      continue;
+    }
+    const ow = Number(other.width ?? other.style?.width ?? 200);
+    const oh = Number(other.height ?? other.style?.height ?? 140);
+    const ox = other.position.x;
+    const oy = other.position.y;
+
+    const otherXs = [ox, ox + ow / 2, ox + ow];
+    for (const tx of otherXs) {
+      if (leftMoved) {
+        const diff = Math.abs(rawLeft - tx);
+        const candidateW = rawRight - tx;
+        if (diff < bestDx && candidateW >= 180) {
+          bestDx = diff;
+          snappedX = tx;
+          snappedW = candidateW;
+          matchedX = { pos: tx, otherTop: oy, otherBottom: oy + oh };
+        }
+      } else {
+        const diff = Math.abs(rawRight - tx);
+        const candidateW = tx - rawLeft;
+        if (diff < bestDx && candidateW >= 180) {
+          bestDx = diff;
+          snappedX = rawLeft;
+          snappedW = candidateW;
+          matchedX = { pos: tx, otherTop: oy, otherBottom: oy + oh };
+        }
+      }
+    }
+
+    const otherYs = [oy, oy + oh / 2, oy + oh];
+    for (const ty of otherYs) {
+      if (topMoved) {
+        const diff = Math.abs(rawTop - ty);
+        const candidateH = rawBottom - ty;
+        if (diff < bestDy && candidateH >= 110) {
+          bestDy = diff;
+          snappedY = ty;
+          snappedH = candidateH;
+          matchedY = { pos: ty, otherLeft: ox, otherRight: ox + ow };
+        }
+      } else {
+        const diff = Math.abs(rawBottom - ty);
+        const candidateH = ty - rawTop;
+        if (diff < bestDy && candidateH >= 110) {
+          bestDy = diff;
+          snappedY = rawTop;
+          snappedH = candidateH;
+          matchedY = { pos: ty, otherLeft: ox, otherRight: ox + ow };
+        }
+      }
+    }
+  }
+
+  const finalRect: ResizeRect = {
+    x: Math.round(bestDx <= SNAP_THRESHOLD ? snappedX : raw.x),
+    y: Math.round(bestDy <= SNAP_THRESHOLD ? snappedY : raw.y),
+    width: Math.max(180, Math.round(bestDx <= SNAP_THRESHOLD ? snappedW : raw.width)),
+    height: Math.max(110, Math.round(bestDy <= SNAP_THRESHOLD ? snappedH : raw.height)),
+  };
+
+  const guides: SnapGuideLine[] = [];
+  if (bestDx <= SNAP_THRESHOLD && matchedX) {
+    guides.push({
+      orientation: 'vertical',
+      pos: matchedX.pos,
+      start: Math.min(finalRect.y, matchedX.otherTop) - 16,
+      end: Math.max(finalRect.y + finalRect.height, matchedX.otherBottom) + 16,
+      label: `X ${Math.round(matchedX.pos)}`,
+    });
+  }
+  if (bestDy <= SNAP_THRESHOLD && matchedY) {
+    guides.push({
+      orientation: 'horizontal',
+      pos: matchedY.pos,
+      start: Math.min(finalRect.x, matchedY.otherLeft) - 16,
+      end: Math.max(finalRect.x + finalRect.width, matchedY.otherRight) + 16,
+      label: `Y ${Math.round(matchedY.pos)}`,
+    });
+  }
+
+  const badge = {
+    label: `${finalRect.width}×${finalRect.height}`,
+    pos: { x: finalRect.x, y: finalRect.y - 22 },
+  };
+
+  return { rect: finalRect, guides, badge };
+}
+
 function buildFlowNodes(
   elements: CanvasElement[],
   pageId: string,
-  selectedElementId: string | null,
+  selectedElementIds: string[],
   onConfigure: (elementId: string) => void,
 ): CanvasFlowNode[] {
+  const selectedSet = new Set(selectedElementIds);
   return elements.map((el) => ({
     id: el.id,
     type: el.type,
@@ -397,7 +515,7 @@ function buildFlowNodes(
     width: el.size.width,
     height: el.size.height,
     style: { width: el.size.width, height: el.size.height },
-    selected: el.id === selectedElementId,
+    selected: selectedSet.has(el.id),
     dragHandle: '.canvas-node-drag',
     data: {
       element: el,
@@ -439,14 +557,23 @@ function CanvasInner({ onOpenTemplates }: CanvasWorkspaceProps) {
   const [snapEnabled, setSnapEnabled] = useState<boolean>(true);
   const [snapGuides, setSnapGuides] = useState<SnapGuideLine[]>([]);
   const [relativeBadge, setRelativeBadge] = useState<{ label: string; pos: Position } | null>(null);
+  const [renamingTabPageId, setRenamingTabPageId] = useState<string | null>(null);
+  const [tabRenameDraft, setTabRenameDraft] = useState('');
 
   const surfaceRef = useRef<HTMLDivElement | null>(null);
   const snappedPosRef = useRef<Record<string, Position>>({});
+  const snappedResizeRef = useRef<Record<string, ResizeRect>>({});
   const lastFocusedSelectionRef = useRef<string | null>(null);
 
   const activePage =
     state.project.canvases.find((p) => p.id === state.activePageId) ?? state.project.canvases[0];
   const dataset = state.project.primaryDataset;
+  const selectedIds =
+    state.selectedElementIds && state.selectedElementIds.length > 0
+      ? state.selectedElementIds
+      : state.selectedElementId
+        ? [state.selectedElementId]
+        : [];
 
   const handleOpenConfig = useCallback((elementId: string) => {
     setConfigElementId((prev) => (prev === elementId ? null : elementId));
@@ -456,7 +583,7 @@ function CanvasInner({ onOpenTemplates }: CanvasWorkspaceProps) {
     buildFlowNodes(
       activePage.elements,
       activePage.id,
-      state.selectedElementId,
+      selectedIds,
       handleOpenConfig,
     ),
   );
@@ -467,11 +594,11 @@ function CanvasInner({ onOpenTemplates }: CanvasWorkspaceProps) {
       buildFlowNodes(
         activePage.elements,
         activePage.id,
-        state.selectedElementId,
+        selectedIds,
         handleOpenConfig,
       ),
     );
-  }, [activePage.elements, activePage.id, state.selectedElementId, handleOpenConfig]);
+  }, [activePage.elements, activePage.id, state.selectedElementId, state.selectedElementIds, handleOpenConfig]);
 
   // Apply real-time drag and resize changes inside React Flow state
   const handleNodesChange = useCallback((changes: NodeChangeset<CanvasFlowNode>) => {
@@ -607,7 +734,7 @@ function CanvasInner({ onOpenTemplates }: CanvasWorkspaceProps) {
   );
 
   const handleSurfaceKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    if (event.key !== 'Delete' || !state.selectedElementId) {
+    if (event.key !== 'Delete' || selectedIds.length === 0) {
       return;
     }
     if (isEditableTarget(event.target)) {
@@ -615,9 +742,9 @@ function CanvasInner({ onOpenTemplates }: CanvasWorkspaceProps) {
     }
     event.preventDefault();
     dispatch({
-      type: 'DELETE_ELEMENT',
+      type: 'DELETE_ELEMENTS',
       pageId: activePage.id,
-      elementId: state.selectedElementId,
+      elementIds: selectedIds,
     });
   };
 
@@ -715,7 +842,49 @@ function CanvasInner({ onOpenTemplates }: CanvasWorkspaceProps) {
     [snapEnabled, flowNodes],
   );
 
+  const onResizeSnap = useCallback(
+    (elementId: string, rect: ResizeRect) => {
+      if (!snapEnabled) {
+        setSnapGuides([]);
+        setRelativeBadge({
+          label: `${Math.round(rect.width)}×${Math.round(rect.height)}`,
+          pos: { x: rect.x, y: rect.y - 22 },
+        });
+        delete snappedResizeRef.current[elementId];
+        return;
+      }
+      const origEl = activePage.elements.find((e) => e.id === elementId);
+      const origRect: ResizeRect = origEl
+        ? {
+            x: origEl.position.x,
+            y: origEl.position.y,
+            width: origEl.size.width,
+            height: origEl.size.height,
+          }
+        : rect;
+      const res = computeResizeSnap(elementId, rect, origRect, flowNodes);
+      snappedResizeRef.current[elementId] = res.rect;
+      setSnapGuides(res.guides);
+      setRelativeBadge(res.badge);
+    },
+    [snapEnabled, activePage.elements, flowNodes],
+  );
+
+  const onResizeSnapEnd = useCallback(
+    (elementId: string, rect: ResizeRect): ResizeRect => {
+      const snapped = snapEnabled ? (snappedResizeRef.current[elementId] ?? rect) : rect;
+      delete snappedResizeRef.current[elementId];
+      setSnapGuides([]);
+      setRelativeBadge(null);
+      return snapped;
+    },
+    [snapEnabled],
+  );
+
+  const snapContextValue = { onResizeSnap, onResizeSnapEnd };
+
   return (
+    <CanvasSnapContext.Provider value={snapContextValue}>
     <div className="cw-root" onKeyDown={handleSurfaceKeyDown}>
       <div className="cw-toolbar">
         <div className="cw-toolbar-group">
@@ -1043,6 +1212,78 @@ function CanvasInner({ onOpenTemplates }: CanvasWorkspaceProps) {
         )}
       </div>
 
+      {/* Excel-like bottom sheet tabs for Canvas pages */}
+      <div className="cw-sheet-tabs" role="tablist" aria-label="Сторінки Canvas">
+        <div className="cw-sheet-tabs-scroll">
+          {state.project.canvases.map((page) => {
+            const isActive = page.id === activePage.id;
+            const isRenaming = renamingTabPageId === page.id;
+            return isRenaming ? (
+              <input
+                key={page.id}
+                type="text"
+                className="cw-sheet-tab-input"
+                value={tabRenameDraft}
+                autoFocus
+                onChange={(e) => setTabRenameDraft(e.target.value)}
+                onBlur={() => {
+                  const trimmed = tabRenameDraft.trim();
+                  if (trimmed) {
+                    dispatch({ type: 'RENAME_PAGE', pageId: page.id, name: trimmed });
+                  }
+                  setRenamingTabPageId(null);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    const trimmed = tabRenameDraft.trim();
+                    if (trimmed) {
+                      dispatch({ type: 'RENAME_PAGE', pageId: page.id, name: trimmed });
+                    }
+                    setRenamingTabPageId(null);
+                  } else if (e.key === 'Escape') {
+                    setRenamingTabPageId(null);
+                  }
+                }}
+              />
+            ) : (
+              <button
+                key={page.id}
+                type="button"
+                role="tab"
+                aria-selected={isActive}
+                className={`cw-sheet-tab ${isActive ? 'cw-sheet-tab--active' : ''}`}
+                onClick={() => dispatch({ type: 'SELECT_PAGE', pageId: page.id })}
+                onDoubleClick={() => {
+                  setRenamingTabPageId(page.id);
+                  setTabRenameDraft(page.name);
+                }}
+                title="Клік — перейти · Подвійний клік — перейменувати"
+              >
+                <span>{page.name}</span>
+                {page.elements.length > 0 && (
+                  <span className="cw-sheet-tab-count">{page.elements.length}</span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+        <button
+          type="button"
+          className="cw-sheet-add-btn"
+          onClick={() =>
+            dispatch({
+              type: 'ADD_PAGE',
+              name: `Сторінка ${state.project.canvases.length + 1}`,
+              activate: true,
+            })
+          }
+          title={uk.navigator.addPage}
+          aria-label={uk.navigator.addPage}
+        >
+          <Plus size={13} />
+        </button>
+      </div>
+
       {contextMenu && menuCoords && (
         <div
           className="cw-context-menu"
@@ -1312,6 +1553,7 @@ function CanvasInner({ onOpenTemplates }: CanvasWorkspaceProps) {
         </div>
       )}
     </div>
+    </CanvasSnapContext.Provider>
   );
 }
 

@@ -58,6 +58,7 @@ export function createInitialWorkspaceState(project: Project = createEmptyProjec
     project,
     activePageId: project.canvases[0]?.id ?? '',
     selectedElementId: null,
+    selectedElementIds: [],
     dirtySinceLastExport: false,
     needsLayoutChooser: false,
   };
@@ -86,10 +87,13 @@ export type ProjectAction =
   | { type: 'MOVE_ELEMENT'; pageId: string; elementId: string; position: Position }
   | { type: 'RESIZE_ELEMENT'; pageId: string; elementId: string; size: Size; position?: Position }
   | { type: 'DELETE_ELEMENT'; pageId: string; elementId: string }
+  | { type: 'DELETE_ELEMENTS'; pageId: string; elementIds: string[] }
   | { type: 'SELECT_ELEMENT'; elementId: string | null; pageId?: string }
+  | { type: 'SELECT_ELEMENTS'; elementIds: string[]; primaryId?: string | null; pageId?: string }
   | { type: 'APPLY_CANVAS_PAGES'; pages: CanvasPage[]; activePageId?: string }
   | { type: 'DISMISS_LAYOUT_CHOOSER' }
   | { type: 'REPLACE_PROJECT'; project: Project }
+  | { type: 'RESTORE_SNAPSHOT'; project: Project; activePageId: string }
   | { type: 'MARK_EXPORTED' }
   | { type: 'RESET_PROJECT'; projectName?: string; firstPageName?: string };
 
@@ -284,6 +288,7 @@ export function projectReducer(state: WorkspaceState, action: ProjectAction): Wo
         },
         activePageId: activeDeleted ? nextCanvases[0].id : state.activePageId,
         selectedElementId: activeDeleted ? null : state.selectedElementId,
+        selectedElementIds: activeDeleted ? [] : (state.selectedElementIds ?? []),
         dirtySinceLastExport: true,
       };
     }
@@ -299,6 +304,7 @@ export function projectReducer(state: WorkspaceState, action: ProjectAction): Wo
         ...state,
         activePageId: action.pageId,
         selectedElementId: null,
+        selectedElementIds: [],
       };
     }
 
@@ -325,6 +331,8 @@ export function projectReducer(state: WorkspaceState, action: ProjectAction): Wo
       return {
         ...next,
         selectedElementId: action.select === false ? state.selectedElementId : action.element.id,
+        selectedElementIds:
+          action.select === false ? (state.selectedElementIds ?? []) : [action.element.id],
       };
     }
 
@@ -383,10 +391,37 @@ export function projectReducer(state: WorkspaceState, action: ProjectAction): Wo
       if (next === state) {
         return state;
       }
+      const nextIds = (state.selectedElementIds ?? []).filter((id) => id !== action.elementId);
+      const nextPrimary =
+        state.selectedElementId === action.elementId ? (nextIds[nextIds.length - 1] ?? null) : state.selectedElementId;
       return {
         ...next,
-        selectedElementId:
-          state.selectedElementId === action.elementId ? null : state.selectedElementId,
+        selectedElementId: nextPrimary,
+        selectedElementIds: nextIds,
+      };
+    }
+
+    case 'DELETE_ELEMENTS': {
+      if (action.elementIds.length === 0) {
+        return state;
+      }
+      const toDelete = new Set(action.elementIds);
+      const next = updatePageInProject(state, action.pageId, (page) => {
+        const filtered = page.elements.filter((el) => !toDelete.has(el.id));
+        return filtered.length === page.elements.length ? page : { ...page, elements: filtered };
+      });
+      if (next === state) {
+        return state;
+      }
+      const nextIds = (state.selectedElementIds ?? []).filter((id) => !toDelete.has(id));
+      const nextPrimary =
+        state.selectedElementId && toDelete.has(state.selectedElementId)
+          ? (nextIds[nextIds.length - 1] ?? null)
+          : state.selectedElementId;
+      return {
+        ...next,
+        selectedElementId: nextPrimary,
+        selectedElementIds: nextIds,
       };
     }
 
@@ -399,6 +434,25 @@ export function projectReducer(state: WorkspaceState, action: ProjectAction): Wo
         ...state,
         activePageId: targetPageId,
         selectedElementId: action.elementId,
+        selectedElementIds: action.elementId ? [action.elementId] : [],
+      };
+    }
+
+    case 'SELECT_ELEMENTS': {
+      const targetPageId = action.pageId ?? state.activePageId;
+      if (!state.project.canvases.some((page) => page.id === targetPageId)) {
+        return state;
+      }
+      const uniqueIds = Array.from(new Set(action.elementIds));
+      const primaryId =
+        action.primaryId !== undefined
+          ? action.primaryId
+          : (uniqueIds[uniqueIds.length - 1] ?? null);
+      return {
+        ...state,
+        activePageId: targetPageId,
+        selectedElementId: primaryId,
+        selectedElementIds: uniqueIds,
       };
     }
 
@@ -415,6 +469,7 @@ export function projectReducer(state: WorkspaceState, action: ProjectAction): Wo
         },
         activePageId: action.activePageId ?? action.pages[0].id,
         selectedElementId: null,
+        selectedElementIds: [],
         needsLayoutChooser: false,
         dirtySinceLastExport: true,
       };
@@ -428,8 +483,21 @@ export function projectReducer(state: WorkspaceState, action: ProjectAction): Wo
         project: action.project,
         activePageId: action.project.canvases[0]?.id ?? '',
         selectedElementId: null,
+        selectedElementIds: [],
         dirtySinceLastExport: false,
         needsLayoutChooser: false,
+      };
+
+    case 'RESTORE_SNAPSHOT':
+      return {
+        ...state,
+        project: action.project,
+        activePageId: action.project.canvases.some((p) => p.id === action.activePageId)
+          ? action.activePageId
+          : (action.project.canvases[0]?.id ?? ''),
+        selectedElementId: null,
+        selectedElementIds: [],
+        dirtySinceLastExport: true,
       };
 
     case 'MARK_EXPORTED':

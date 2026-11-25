@@ -10,7 +10,7 @@ import {
   type Dispatch,
   type ReactNode,
 } from 'react';
-import type { WorkspaceState } from '../domain/models';
+import type { Project, WorkspaceState } from '../domain/models';
 import { uk } from '../i18n/uk';
 import {
   createEmptyProject,
@@ -32,6 +32,8 @@ export interface SessionNotice {
 interface ProjectContextValue {
   state: WorkspaceState;
   dispatch: Dispatch<ProjectAction>;
+  undo: () => void;
+  canUndo: boolean;
   sessionNotice: SessionNotice | null;
   dismissSessionNotice: () => void;
   resetSessionProject: () => void;
@@ -40,6 +42,19 @@ interface ProjectContextValue {
 const ProjectContext = createContext<ProjectContextValue | null>(null);
 
 const SAVE_DEBOUNCE_MS = 350;
+const MAX_UNDO_HISTORY = 50;
+
+const NON_UNDOABLE_ACTIONS = new Set<ProjectAction['type']>([
+  'SELECT_PAGE',
+  'SELECT_ELEMENT',
+  'SELECT_ELEMENTS',
+  'SET_PAGE_VIEWPORT',
+  'DISMISS_LAYOUT_CHOOSER',
+  'MARK_EXPORTED',
+  'RESTORE_SNAPSHOT',
+  'REPLACE_PROJECT',
+  'RESET_PROJECT',
+]);
 
 function initializeFromSession(): {
   initialState: WorkspaceState;
@@ -80,13 +95,74 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     bootRef.current = initializeFromSession();
   }
 
-  const [state, dispatch] = useReducer(projectReducer, bootRef.current.initialState);
+  const [state, rawDispatch] = useReducer(projectReducer, bootRef.current.initialState);
   const [sessionNotice, setSessionNotice] = useState<SessionNotice | null>(
     bootRef.current.initialNotice,
   );
+  const undoStackRef = useRef<Array<{ project: Project; activePageId: string }>>([]);
+  const [canUndo, setCanUndo] = useState(false);
 
   const latestStateRef = useRef(state);
   latestStateRef.current = state;
+
+  const dispatch: Dispatch<ProjectAction> = useCallback((action) => {
+    if (action.type === 'REPLACE_PROJECT' || action.type === 'RESET_PROJECT') {
+      undoStackRef.current = [];
+      setCanUndo(false);
+    } else if (!NON_UNDOABLE_ACTIONS.has(action.type)) {
+      const current = latestStateRef.current;
+      undoStackRef.current.push({
+        project: current.project,
+        activePageId: current.activePageId,
+      });
+      if (undoStackRef.current.length > MAX_UNDO_HISTORY) {
+        undoStackRef.current.shift();
+      }
+      setCanUndo(true);
+    }
+    rawDispatch(action);
+  }, []);
+
+  const undo = useCallback(() => {
+    const prev = undoStackRef.current.pop();
+    if (!prev) {
+      return;
+    }
+    setCanUndo(undoStackRef.current.length > 0);
+    rawDispatch({
+      type: 'RESTORE_SNAPSHOT',
+      project: prev.project,
+      activePageId: prev.activePageId,
+    });
+  }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.shiftKey || event.altKey) {
+        return;
+      }
+      if (event.key.toLowerCase() !== 'z') {
+        return;
+      }
+      const target = event.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.tagName === 'SELECT' ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+      if (undoStackRef.current.length > 0) {
+        event.preventDefault();
+        undo();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [undo]);
 
   const persistSnapshot = useCallback((targetState: WorkspaceState) => {
     const result = saveSessionSnapshot(targetState);
@@ -145,11 +221,13 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     () => ({
       state,
       dispatch,
+      undo,
+      canUndo,
       sessionNotice,
       dismissSessionNotice,
       resetSessionProject,
     }),
-    [state, sessionNotice, dismissSessionNotice, resetSessionProject],
+    [state, dispatch, undo, canUndo, sessionNotice, dismissSessionNotice, resetSessionProject],
   );
 
   return <ProjectContext.Provider value={value}>{children}</ProjectContext.Provider>;

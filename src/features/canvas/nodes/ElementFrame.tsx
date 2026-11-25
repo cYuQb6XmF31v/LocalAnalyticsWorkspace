@@ -3,6 +3,7 @@ import { NodeResizer, type Node } from '@xyflow/react';
 import { ArrowUpRight, Settings2, Trash2 } from 'lucide-react';
 import { useProject } from '../../../app/ProjectContext';
 import type { CanvasElement, ElementLink } from '../../../domain/models';
+import { useCanvasSnap } from '../canvasSnapContext';
 import './CanvasNodes.css';
 
 export interface CanvasFlowNodeData extends Record<string, unknown> {
@@ -33,6 +34,7 @@ export function ElementFrame({
   children,
 }: ElementFrameProps) {
   const { state, dispatch } = useProject();
+  const canvasSnap = useCanvasSnap();
   const links = element.links ?? [];
 
   const resolveLinkDisplay = (link: ElementLink) => {
@@ -80,18 +82,22 @@ export function ElementFrame({
         color="#7c5cff"
         handleStyle={{ width: 10, height: 10, borderRadius: 3, background: '#7c5cff', border: '2px solid #fff2' }}
         lineStyle={{ borderColor: '#7c5cff', borderWidth: 2, opacity: 0.6 }}
+        onResize={(_event, params) => {
+          canvasSnap?.onResizeSnap(element.id, params);
+        }}
         onResizeEnd={(_event, params) => {
+          const snapped = canvasSnap?.onResizeSnapEnd(element.id, params) ?? params;
           dispatch({
             type: 'RESIZE_ELEMENT',
             pageId,
             elementId: element.id,
             size: {
-              width: Math.round(params.width),
-              height: Math.round(params.height),
+              width: Math.max(180, Math.round(snapped.width)),
+              height: Math.max(110, Math.round(snapped.height)),
             },
             position: {
-              x: Math.round(params.x),
-              y: Math.round(params.y),
+              x: Math.round(snapped.x),
+              y: Math.round(snapped.y),
             },
           });
         }}

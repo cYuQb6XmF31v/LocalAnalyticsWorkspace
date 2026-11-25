@@ -26,8 +26,9 @@ export function ActivityHeatmapPanel() {
       if (!dragStartRef.current) {
         return;
       }
-      const delta = moveEvent.clientY - dragStartRef.current.startY;
-      const next = Math.max(100, Math.min(340, dragStartRef.current.startHeight + delta));
+      // Top-edge handle: dragging UP (smaller clientY) increases heatmap height
+      const delta = dragStartRef.current.startY - moveEvent.clientY;
+      const next = Math.max(100, Math.min(360, dragStartRef.current.startHeight + delta));
       setHeatmapHeight(Math.round(next));
     };
 
@@ -52,6 +53,16 @@ export function ActivityHeatmapPanel() {
 
   return (
     <section className="heatmap-dock" aria-label="Календар активності за датою">
+      {isExpanded && (
+        <div
+          className="heatmap-resize-handle"
+          role="separator"
+          aria-orientation="horizontal"
+          aria-label="Змінити висоту календаря"
+          title="Потягніть вгору або вниз для зміни висоти календаря"
+          onPointerDown={handleResizePointerDown}
+        />
+      )}
       <div className="heatmap-toggle-bar">
         <button
           type="button"
@@ -141,14 +152,6 @@ export function ActivityHeatmapPanel() {
                   Більше ({result.maxCount})
                 </span>
               </div>
-              <div
-                className="heatmap-resize-handle"
-                role="separator"
-                aria-orientation="horizontal"
-                aria-label="Змінити висоту календаря"
-                title="Потягніть для зміни висоти календаря"
-                onPointerDown={handleResizePointerDown}
-              />
             </div>
           )}
         </div>

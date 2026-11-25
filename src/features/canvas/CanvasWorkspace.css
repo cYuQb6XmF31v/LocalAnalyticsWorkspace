@@ -231,3 +231,96 @@
   white-space: nowrap;
   pointer-events: none;
 }
+
+
+/* Excel-like bottom sheet tabs */
+.cw-sheet-tabs {
+  flex-shrink: 0;
+  height: 30px;
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  padding: 0 8px;
+  background-color: var(--bg-panel);
+  border-top: 1px solid var(--border-subtle);
+  overflow: hidden;
+}
+
+.cw-sheet-tabs-scroll {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  overflow-x: auto;
+  flex: 1;
+  min-width: 0;
+  padding-top: 3px;
+}
+
+.cw-sheet-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 12px;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  border: 1px solid transparent;
+  border-bottom: none;
+  background-color: transparent;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 0.12s, color 0.12s;
+}
+
+.cw-sheet-tab:hover {
+  background-color: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.cw-sheet-tab--active {
+  background-color: var(--bg-app);
+  color: var(--accent-text);
+  border-color: var(--border-subtle);
+  font-weight: 600;
+}
+
+.cw-sheet-tab-count {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+  padding: 0 4px;
+  border-radius: 999px;
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.cw-sheet-tab-input {
+  height: 24px;
+  width: 120px;
+  padding: 0 8px;
+  margin-bottom: 1px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--accent);
+  background-color: var(--bg-app);
+  color: var(--text-primary);
+  font-size: var(--text-xs);
+  outline: none;
+}
+
+.cw-sheet-add-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  margin: 3px 0;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.cw-sheet-add-btn:hover {
+  background-color: var(--bg-hover);
+  color: var(--text-primary);
+}
