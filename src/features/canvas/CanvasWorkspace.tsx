@@ -835,7 +835,8 @@ function CanvasInner({ onOpenTemplates }: CanvasWorkspaceProps) {
 
       const w = Number(node.width ?? node.style?.width ?? 220);
       const h = Number(node.height ?? node.style?.height ?? 140);
-      const res = computeSnapAndGuides(node.id, node.position, { width: w, height: h }, flowNodes);
+      const staticOtherNodes = flowNodes.filter((n) => n.id !== node.id && !n.selected);
+      const res = computeSnapAndGuides(node.id, node.position, { width: w, height: h }, staticOtherNodes);
 
       snappedPosRef.current[node.id] = res.snappedPosition;
       setSnapGuides(res.guides);
@@ -1092,14 +1093,27 @@ function CanvasInner({ onOpenTemplates }: CanvasWorkspaceProps) {
           deleteKeyCode={null}
           onNodesChange={handleNodesChange}
           onNodesDelete={handleNodesDelete}
-          onNodeClick={(_event, node) => {
+          onNodeClick={(event, node) => {
             setContextMenu(null);
             lastFocusedSelectionRef.current = node.id;
-            dispatch({
-              type: 'SELECT_ELEMENT',
-              elementId: node.id,
-              pageId: activePage.id,
-            });
+            if (event.shiftKey || event.ctrlKey || event.metaKey) {
+              const exists = selectedIds.includes(node.id);
+              const nextIds = exists
+                ? selectedIds.filter((id) => id !== node.id)
+                : [...selectedIds, node.id];
+              dispatch({
+                type: 'SELECT_ELEMENTS',
+                elementIds: nextIds,
+                primaryId: nextIds.includes(node.id) ? node.id : (nextIds[nextIds.length - 1] ?? null),
+                pageId: activePage.id,
+              });
+            } else {
+              dispatch({
+                type: 'SELECT_ELEMENT',
+                elementId: node.id,
+                pageId: activePage.id,
+              });
+            }
           }}
           onPaneClick={() => {
             setContextMenu(null);
@@ -1140,20 +1154,45 @@ function CanvasInner({ onOpenTemplates }: CanvasWorkspaceProps) {
             });
           }}
           onNodeDrag={handleNodeDrag}
-          onNodeDragStop={(_event, node) => {
-            const finalPos = snappedPosRef.current[node.id] ?? node.position;
+          onNodeDragStop={(_event, node, draggedNodes) => {
+            const snappedMain = snappedPosRef.current[node.id];
             delete snappedPosRef.current[node.id];
             setSnapGuides([]);
             setRelativeBadge(null);
-            dispatch({
-              type: 'MOVE_ELEMENT',
-              pageId: activePage.id,
-              elementId: node.id,
-              position: {
-                x: Math.round(finalPos.x),
-                y: Math.round(finalPos.y),
-              },
+
+            const dx = snappedMain ? snappedMain.x - node.position.x : 0;
+            const dy = snappedMain ? snappedMain.y - node.position.y : 0;
+            const targetNodes =
+              draggedNodes && draggedNodes.length > 0 ? draggedNodes : [node];
+
+            const moves = targetNodes.map((n) => {
+              const basePos = n.id === node.id && snappedMain ? snappedMain : {
+                x: n.position.x + dx,
+                y: n.position.y + dy,
+              };
+              return {
+                elementId: n.id,
+                position: {
+                  x: Math.round(basePos.x),
+                  y: Math.round(basePos.y),
+                },
+              };
             });
+
+            if (moves.length === 1) {
+              dispatch({
+                type: 'MOVE_ELEMENT',
+                pageId: activePage.id,
+                elementId: moves[0].elementId,
+                position: moves[0].position,
+              });
+            } else {
+              dispatch({
+                type: 'MOVE_ELEMENTS',
+                pageId: activePage.id,
+                moves,
+              });
+            }
           }}
           onMoveEnd={(_event, viewport) => {
             dispatch({

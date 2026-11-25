@@ -85,6 +85,7 @@ export type ProjectAction =
   | { type: 'UPDATE_ELEMENT_CONFIG'; pageId: string; elementId: string; config: CanvasElementConfig }
   | { type: 'UPDATE_ELEMENT_LINKS'; pageId: string; elementId: string; links: ElementLink[] }
   | { type: 'MOVE_ELEMENT'; pageId: string; elementId: string; position: Position }
+  | { type: 'MOVE_ELEMENTS'; pageId: string; moves: Array<{ elementId: string; position: Position }> }
   | { type: 'RESIZE_ELEMENT'; pageId: string; elementId: string; size: Size; position?: Position }
   | { type: 'DELETE_ELEMENT'; pageId: string; elementId: string }
   | { type: 'DELETE_ELEMENTS'; pageId: string; elementIds: string[] }
@@ -368,6 +369,20 @@ export function projectReducer(state: WorkspaceState, action: ProjectAction): Wo
           el.id === action.elementId ? { ...el, position: action.position } : el,
         ),
       }));
+
+    case 'MOVE_ELEMENTS': {
+      if (action.moves.length === 0) {
+        return state;
+      }
+      const posById = new Map(action.moves.map((m) => [m.elementId, m.position]));
+      return updatePageInProject(state, action.pageId, (page) => ({
+        ...page,
+        elements: page.elements.map((el) => {
+          const nextPos = posById.get(el.id);
+          return nextPos ? { ...el, position: nextPos } : el;
+        }),
+      }));
+    }
 
     case 'RESIZE_ELEMENT':
       return updatePageInProject(state, action.pageId, (page) => ({
