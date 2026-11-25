@@ -68,11 +68,20 @@ export interface KpiElementConfig {
   sparklineOrderFieldId?: string | null;
 }
 
+export type ChartSortMode = 'none' | 'label-asc' | 'label-desc' | 'value-asc' | 'value-desc';
+
 export interface ChartDisplayOptions {
   showDataLabels?: boolean;
   dataLabelFontSize?: number;
   rotateLabels?: boolean;
   axisLabelFontSize?: number;
+  sortBy?: ChartSortMode;
+  filterText?: string;
+  topN?: number;
+  showAvgLine?: boolean;
+  cumulative?: boolean;
+  asPercent?: boolean;
+  accentColor?: string;
 }
 
 export interface ChartElementConfig extends ChartDisplayOptions {

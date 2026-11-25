@@ -1,14 +1,137 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Plus, Trash2, X } from 'lucide-react';
 import { useProject } from '../../app/ProjectContext';
 import type {
   CanvasElement,
   ChartAggregation,
+  ChartSortMode,
   Column,
   ElementLink,
   KpiAggregation,
 } from '../../domain/models';
 import './ElementConfigPanel.css';
+
+const CHART_COLOR_PRESETS = [
+  '#7c5cff',
+  '#38bdf8',
+  '#34d399',
+  '#fbbf24',
+  '#fb7185',
+  '#f472b6',
+] as const;
+
+interface ScrubNumberControlProps {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  unit?: string;
+  onChange: (next: number) => void;
+}
+
+/**
+ * AfterEffects-style scrubby numeric control + range slider:
+ * drag the numeric pill left/right to scrub, click to type, or use the slider.
+ */
+function ScrubNumberControl({
+  label,
+  value,
+  min,
+  max,
+  unit = 'px',
+  onChange,
+}: ScrubNumberControlProps) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(String(value));
+  const dragRef = useRef<{ startX: number; startVal: number; moved: boolean } | null>(null);
+
+  const clampVal = (n: number) => Math.max(min, Math.min(max, Math.round(n)));
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLSpanElement>) => {
+    e.preventDefault();
+    dragRef.current = { startX: e.clientX, startVal: value, moved: false };
+
+    const handleMove = (ev: PointerEvent) => {
+      if (!dragRef.current) {
+        return;
+      }
+      const dx = ev.clientX - dragRef.current.startX;
+      if (Math.abs(dx) > 3) {
+        dragRef.current.moved = true;
+      }
+      const step = Math.round(dx / 6);
+      onChange(clampVal(dragRef.current.startVal + step));
+    };
+
+    const handleUp = () => {
+      const wasMoved = dragRef.current?.moved ?? false;
+      dragRef.current = null;
+      window.removeEventListener('pointermove', handleMove);
+      window.removeEventListener('pointerup', handleUp);
+      if (!wasMoved) {
+        setDraft(String(value));
+        setEditing(true);
+      }
+    };
+
+    window.addEventListener('pointermove', handleMove);
+    window.addEventListener('pointerup', handleUp);
+  };
+
+  return (
+    <div className="config-scrub-row">
+      <div className="config-scrub-head">
+        <span className="config-label">{label}</span>
+        {editing ? (
+          <input
+            type="number"
+            min={min}
+            max={max}
+            className="config-input config-input--compact"
+            value={draft}
+            autoFocus
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={() => {
+              const num = Number(draft);
+              if (Number.isFinite(num)) {
+                onChange(clampVal(num));
+              }
+              setEditing(false);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                const num = Number(draft);
+                if (Number.isFinite(num)) {
+                  onChange(clampVal(num));
+                }
+                setEditing(false);
+              } else if (e.key === 'Escape') {
+                setEditing(false);
+              }
+            }}
+          />
+        ) : (
+          <span
+            className="config-scrub-pill"
+            title="Потягніть вліво/вправо для зміни або клікніть для введення"
+            onPointerDown={handlePointerDown}
+          >
+            {value}
+            {unit}
+          </span>
+        )}
+      </div>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        value={value}
+        className="config-range"
+        onChange={(e) => onChange(clampVal(Number(e.target.value)))}
+      />
+    </div>
+  );
+}
 
 interface ElementConfigPanelProps {
   pageId: string;
@@ -652,7 +775,7 @@ export function ElementConfigPanel({ pageId, element, onClose }: ElementConfigPa
           <>
             <div className="config-divider" />
             <div className="config-field">
-              <span className="config-label">Відображення графіка</span>
+              <span className="config-label">Відображення та шрифти</span>
               <label className="config-check-row">
                 <input
                   type="checkbox"
@@ -668,25 +791,18 @@ export function ElementConfigPanel({ pageId, element, onClose }: ElementConfigPa
               </label>
 
               {element.config.showDataLabels && (
-                <label className="config-inline-num">
-                  <span>Розмір шрифту чисел (px)</span>
-                  <input
-                    type="number"
-                    min={8}
-                    max={22}
-                    className="config-input config-input--compact"
-                    value={element.config.dataLabelFontSize ?? 10}
-                    onChange={(e) => {
-                      const num = Number(e.target.value);
-                      updateConfig({
-                        ...element.config,
-                        dataLabelFontSize: Number.isFinite(num)
-                          ? Math.max(8, Math.min(22, Math.round(num)))
-                          : 10,
-                      });
-                    }}
-                  />
-                </label>
+                <ScrubNumberControl
+                  label="Розмір шрифту чисел"
+                  value={element.config.dataLabelFontSize ?? 10}
+                  min={8}
+                  max={22}
+                  onChange={(val) =>
+                    updateConfig({
+                      ...element.config,
+                      dataLabelFontSize: val,
+                    })
+                  }
+                />
               )}
 
               {(element.type === 'line-chart' ||
@@ -708,26 +824,137 @@ export function ElementConfigPanel({ pageId, element, onClose }: ElementConfigPa
                 </label>
               )}
 
-              <label className="config-inline-num">
-                <span>Розмір шрифту підписів (px)</span>
+              <ScrubNumberControl
+                label="Розмір шрифту підписів"
+                value={element.config.axisLabelFontSize ?? 10}
+                min={8}
+                max={20}
+                onChange={(val) =>
+                  updateConfig({
+                    ...element.config,
+                    axisLabelFontSize: val,
+                  })
+                }
+              />
+            </div>
+
+            <div className="config-divider" />
+            <div className="config-field">
+              <span className="config-label">Колір графіка</span>
+              <div className="config-color-row">
+                {CHART_COLOR_PRESETS.map((hex) => {
+                  const active =
+                    (element.config.accentColor || '#7c5cff').toLowerCase() === hex.toLowerCase();
+                  return (
+                    <button
+                      key={hex}
+                      type="button"
+                      className={`config-color-swatch ${active ? 'config-color-swatch--active' : ''}`}
+                      style={{ backgroundColor: hex }}
+                      aria-label={`Обрати колір ${hex}`}
+                      onClick={() => updateConfig({ ...element.config, accentColor: hex })}
+                    />
+                  );
+                })}
                 <input
-                  type="number"
-                  min={8}
-                  max={20}
-                  className="config-input config-input--compact"
-                  value={element.config.axisLabelFontSize ?? 10}
-                  onChange={(e) => {
-                    const num = Number(e.target.value);
+                  type="color"
+                  className="config-color-picker"
+                  aria-label="Власний колір графіка"
+                  value={element.config.accentColor || '#7c5cff'}
+                  onChange={(e) =>
+                    updateConfig({ ...element.config, accentColor: e.target.value })
+                  }
+                />
+              </div>
+            </div>
+
+            <div className="config-divider" />
+            <div className="config-field">
+              <span className="config-label">Сортування та фільтри</span>
+
+              {element.type !== 'scatter' && (
+                <select
+                  className="config-select"
+                  aria-label="Сортування діаграми"
+                  value={element.config.sortBy ?? 'none'}
+                  onChange={(e) =>
                     updateConfig({
                       ...element.config,
-                      axisLabelFontSize: Number.isFinite(num)
-                        ? Math.max(8, Math.min(20, Math.round(num)))
-                        : 10,
-                    });
-                  }}
+                      sortBy: e.target.value as ChartSortMode,
+                    })
+                  }
+                >
+                  <option value="none">Без сортування (початковий порядок)</option>
+                  <option value="value-desc">За значенням (спадання ↓)</option>
+                  <option value="value-asc">За значенням (зростання ↑)</option>
+                  <option value="label-asc">За назвою (А → Я)</option>
+                  <option value="label-desc">За назвою (Я → А)</option>
+                </select>
+              )}
+
+              <input
+                type="text"
+                className="config-input"
+                placeholder="Фільтр за назвою категорії…"
+                aria-label="Фільтр за назвою"
+                value={element.config.filterText ?? ''}
+                onChange={(e) =>
+                  updateConfig({ ...element.config, filterText: e.target.value })
+                }
+              />
+
+              {element.type !== 'scatter' && (
+                <ScrubNumberControl
+                  label="Топ N (0 = всі)"
+                  value={element.config.topN ?? 0}
+                  min={0}
+                  max={50}
+                  unit=""
+                  onChange={(val) => updateConfig({ ...element.config, topN: val })}
                 />
-              </label>
+              )}
             </div>
+
+            {(element.type === 'line-chart' ||
+              element.type === 'bar-chart' ||
+              element.type === 'histogram') && (
+              <>
+                <div className="config-divider" />
+                <div className="config-field">
+                  <span className="config-label">Математичні операції</span>
+                  <label className="config-check-row">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(element.config.showAvgLine)}
+                      onChange={(e) =>
+                        updateConfig({ ...element.config, showAvgLine: e.target.checked })
+                      }
+                    />
+                    <span>Лінія середнього (μ)</span>
+                  </label>
+                  <label className="config-check-row">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(element.config.cumulative)}
+                      onChange={(e) =>
+                        updateConfig({ ...element.config, cumulative: e.target.checked })
+                      }
+                    />
+                    <span>Наростаючий підсумок (Cumulative)</span>
+                  </label>
+                  <label className="config-check-row">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(element.config.asPercent)}
+                      onChange={(e) =>
+                        updateConfig({ ...element.config, asPercent: e.target.checked })
+                      }
+                    />
+                    <span>Частка у відсотках (%)</span>
+                  </label>
+                </div>
+              </>
+            )}
           </>
         )}
 

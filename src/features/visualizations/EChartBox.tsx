@@ -5,6 +5,7 @@ import {
   DataZoomComponent,
   GridComponent,
   LegendComponent,
+  MarkLineComponent,
   TooltipComponent,
 } from 'echarts/components';
 import { SVGRenderer } from 'echarts/renderers';
@@ -19,6 +20,7 @@ echarts.use([
   GridComponent,
   TooltipComponent,
   LegendComponent,
+  MarkLineComponent,
   SVGRenderer,
 ]);
 
@@ -175,6 +177,10 @@ export const EChartBox = forwardRef<EChartBoxHandle, EChartBoxProps>(function EC
     const showDataLabels = Boolean(displayOptions?.showDataLabels);
     const dataLabelFontSize = displayOptions?.dataLabelFontSize ?? 10;
     const axisLabelFontSize = displayOptions?.axisLabelFontSize ?? 10;
+    const accentColor = displayOptions?.accentColor || '#7c5cff';
+    const palette = [accentColor, ...SERIES_PALETTE.filter((c) => c.toLowerCase() !== accentColor.toLowerCase())];
+    const asPercent = Boolean(displayOptions?.asPercent);
+    const showAvgLine = Boolean(displayOptions?.showAvgLine);
 
     const baseTooltip = {
       backgroundColor: '#171a22',
@@ -210,7 +216,7 @@ export const EChartBox = forwardRef<EChartBoxHandle, EChartBoxProps>(function EC
         {
           animationDuration: 220,
           backgroundColor: 'transparent',
-          color: SERIES_PALETTE,
+          color: palette,
           tooltip: {
             ...baseTooltip,
             trigger: 'item',
@@ -263,7 +269,7 @@ export const EChartBox = forwardRef<EChartBoxHandle, EChartBoxProps>(function EC
         {
           animationDuration: 220,
           backgroundColor: 'transparent',
-          color: SERIES_PALETTE,
+          color: palette,
           tooltip: { ...baseTooltip, trigger: 'axis', axisPointer: { type: 'shadow' } },
           legend: {
             top: 0,
@@ -367,7 +373,7 @@ export const EChartBox = forwardRef<EChartBoxHandle, EChartBoxProps>(function EC
               type: 'scatter',
               symbolSize: 8,
               itemStyle: {
-                color: '#8f73ff',
+                color: accentColor,
                 opacity: 0.88,
               },
               label: showDataLabels
@@ -434,7 +440,10 @@ export const EChartBox = forwardRef<EChartBoxHandle, EChartBoxProps>(function EC
         yAxis: {
           type: 'value',
           splitLine,
-          axisLabel: axisStyle.axisLabel,
+          axisLabel: {
+            ...axisStyle.axisLabel,
+            formatter: asPercent ? '{value}%' : undefined,
+          },
         },
         dataZoom: insideDataZoom,
         series: [
@@ -452,17 +461,33 @@ export const EChartBox = forwardRef<EChartBoxHandle, EChartBoxProps>(function EC
                   position: 'top',
                   color: '#eceef4',
                   fontSize: dataLabelFontSize,
-                  formatter: (p: { value?: unknown }) => formatCompactValue(p.value),
+                  formatter: (p: { value?: unknown }) =>
+                    asPercent ? `${formatCompactValue(p.value)}%` : formatCompactValue(p.value),
                 }
               : { show: false },
+            markLine: showAvgLine
+              ? {
+                  silent: true,
+                  symbol: 'none',
+                  lineStyle: { color: '#fbbf24', type: 'dashed', width: 1.5 },
+                  label: {
+                    color: '#fbbf24',
+                    fontSize: 10,
+                    formatter: (p: { value?: unknown }) =>
+                      `μ: ${formatCompactValue(p.value)}${asPercent ? '%' : ''}`,
+                  },
+                  data: [{ type: 'average', name: 'Середнє' }],
+                }
+              : undefined,
             itemStyle: {
-              color: '#7c5cff',
+              color: accentColor,
               borderRadius: isLine ? 0 : [3, 3, 0, 0],
             },
-            lineStyle: isLine ? { width: 2, color: '#8f73ff' } : undefined,
+            lineStyle: isLine ? { width: 2, color: accentColor } : undefined,
             areaStyle: isLine
               ? {
-                  color: 'rgba(124, 92, 255, 0.14)',
+                  color: accentColor,
+                  opacity: 0.14,
                 }
               : undefined,
           },

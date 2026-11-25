@@ -159,3 +159,78 @@
   text-align: right;
   font-family: var(--font-mono);
 }
+
+
+/* AfterEffects-style scrubby numeric control + slider */
+.config-scrub-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.config-scrub-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.config-scrub-pill {
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-default);
+  background-color: var(--bg-app);
+  color: var(--accent-text);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  cursor: ew-resize;
+  user-select: none;
+  transition: border-color 0.12s, background-color 0.12s;
+}
+
+.config-scrub-pill:hover {
+  border-color: var(--accent);
+  background-color: var(--accent-muted);
+}
+
+.config-range {
+  width: 100%;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+/* Color picker row */
+.config-color-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.config-color-swatch {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: transform 0.12s, border-color 0.12s;
+}
+
+.config-color-swatch:hover {
+  transform: scale(1.1);
+}
+
+.config-color-swatch--active {
+  border-color: #ffffff;
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.config-color-picker {
+  width: 24px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  cursor: pointer;
+}

@@ -866,19 +866,67 @@ function CanvasInner({ onOpenTemplates }: CanvasWorkspaceProps) {
       snappedResizeRef.current[elementId] = res.rect;
       setSnapGuides(res.guides);
       setRelativeBadge(res.badge);
+
+      if (
+        res.guides.length > 0 &&
+        (res.rect.x !== Math.round(rect.x) ||
+          res.rect.y !== Math.round(rect.y) ||
+          res.rect.width !== Math.round(rect.width) ||
+          res.rect.height !== Math.round(rect.height))
+      ) {
+        setFlowNodes((prev) =>
+          prev.map((n) =>
+            n.id === elementId
+              ? {
+                  ...n,
+                  position: { x: res.rect.x, y: res.rect.y },
+                  width: res.rect.width,
+                  height: res.rect.height,
+                  style: { ...n.style, width: res.rect.width, height: res.rect.height },
+                }
+              : n,
+          ),
+        );
+      }
     },
     [snapEnabled, activePage.elements, flowNodes],
   );
 
   const onResizeSnapEnd = useCallback(
     (elementId: string, rect: ResizeRect): ResizeRect => {
-      const snapped = snapEnabled ? (snappedResizeRef.current[elementId] ?? rect) : rect;
+      let finalRect = rect;
+      if (snapEnabled) {
+        const origEl = activePage.elements.find((e) => e.id === elementId);
+        const origRect: ResizeRect = origEl
+          ? {
+              x: origEl.position.x,
+              y: origEl.position.y,
+              width: origEl.size.width,
+              height: origEl.size.height,
+            }
+          : rect;
+        const res = computeResizeSnap(elementId, rect, origRect, flowNodes);
+        finalRect = res.rect;
+      }
       delete snappedResizeRef.current[elementId];
       setSnapGuides([]);
       setRelativeBadge(null);
-      return snapped;
+      setFlowNodes((prev) =>
+        prev.map((n) =>
+          n.id === elementId
+            ? {
+                ...n,
+                position: { x: finalRect.x, y: finalRect.y },
+                width: finalRect.width,
+                height: finalRect.height,
+                style: { ...n.style, width: finalRect.width, height: finalRect.height },
+              }
+            : n,
+        ),
+      );
+      return finalRect;
     },
-    [snapEnabled],
+    [snapEnabled, activePage.elements, flowNodes],
   );
 
   const snapContextValue = { onResizeSnap, onResizeSnapEnd };
@@ -1034,7 +1082,7 @@ function CanvasInner({ onOpenTemplates }: CanvasWorkspaceProps) {
           defaultViewport={activePage.viewport}
           minZoom={0.25}
           maxZoom={2}
-          deleteKeyCode="Delete"
+          deleteKeyCode={null}
           onNodesChange={handleNodesChange}
           onNodesDelete={handleNodesDelete}
           onNodeClick={(_event, node) => {

@@ -109,16 +109,22 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     if (action.type === 'REPLACE_PROJECT' || action.type === 'RESET_PROJECT') {
       undoStackRef.current = [];
       setCanUndo(false);
-    } else if (!NON_UNDOABLE_ACTIONS.has(action.type)) {
+      rawDispatch(action);
+      return;
+    }
+    if (!NON_UNDOABLE_ACTIONS.has(action.type)) {
       const current = latestStateRef.current;
-      undoStackRef.current.push({
-        project: current.project,
-        activePageId: current.activePageId,
-      });
-      if (undoStackRef.current.length > MAX_UNDO_HISTORY) {
-        undoStackRef.current.shift();
+      const simulatedNext = projectReducer(current, action);
+      if (simulatedNext.project !== current.project) {
+        undoStackRef.current.push({
+          project: current.project,
+          activePageId: current.activePageId,
+        });
+        if (undoStackRef.current.length > MAX_UNDO_HISTORY) {
+          undoStackRef.current.shift();
+        }
+        setCanUndo(true);
       }
-      setCanUndo(true);
     }
     rawDispatch(action);
   }, []);
