@@ -1,5 +1,6 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useCallback } from 'react';
 import type { NodeProps } from '@xyflow/react';
+import { useReactFlow } from '@xyflow/react';
 import {
   AlertTriangle,
   BarChart2,
@@ -153,8 +154,26 @@ function buildChartViewModel(
 
 export function ChartNode({ data, selected }: NodeProps<CanvasFlowNode>) {
   const { state } = useProject();
+  const { zoomIn, zoomOut } = useReactFlow();
   const element = data.element as AnyChartElement;
   const vm = buildChartViewModel(state.project.primaryDataset, element);
+
+  // Ctrl+wheel → zoom Canvas; plain wheel → let ECharts dataZoom handle
+  const handleChartWheel = useCallback(
+    (e: React.WheelEvent<HTMLDivElement>) => {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.deltaY < 0) {
+          zoomIn({ duration: 150 });
+        } else {
+          zoomOut({ duration: 150 });
+        }
+      }
+      // plain wheel: let ECharts handle via its own listener, nowheel keeps canvas unaffected
+    },
+    [zoomIn, zoomOut],
+  );
 
   return (
     <ElementFrame
@@ -187,7 +206,7 @@ export function ChartNode({ data, selected }: NodeProps<CanvasFlowNode>) {
               </span>
             )}
           </div>
-          <div className="canvas-chart-area nodrag nopan nowheel">
+          <div className="canvas-chart-area nodrag nopan nowheel" onWheel={handleChartWheel}>
             <Suspense fallback={<span className="placeholder-hint">Завантаження графіка…</span>}>
               <LazyEChartBox payload={vm.payload} />
             </Suspense>

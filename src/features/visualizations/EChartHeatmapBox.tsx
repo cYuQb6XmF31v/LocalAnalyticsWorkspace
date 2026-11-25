@@ -59,6 +59,8 @@ export function EChartHeatmapBox({
       return;
     }
 
+    const gradientStops = ['#1e1a3a', '#3b2d7a', '#5c3dbf', '#7c5cff', '#a98fff'];
+
     chart.setOption(
       {
         animationDuration: 180,
@@ -77,18 +79,30 @@ export function EChartHeatmapBox({
           },
         },
         visualMap: {
-          min: 1,
-          max: maxCount,
-          show: false,
+          min: 0,
+          max: Math.max(maxCount, 1),
+          show: true,
+          orient: 'horizontal',
+          left: 'center',
+          bottom: 2,
+          itemWidth: 100,
+          itemHeight: 8,
+          borderWidth: 0,
+          text: ['Більше', 'Менше'],
+          textStyle: { color: '#6c7386', fontSize: 9 },
           inRange: {
-            color: ['#2e2459', '#4c3896', '#6b4fd1', '#8f73ff'],
+            color: gradientStops,
           },
+          outOfRange: {
+            color: ['#141720'],
+          },
+          formatter: (val: number) => String(Math.round(val)),
         },
         calendar: {
           top: 22,
-          left: 26,
+          left: 32,
           right: 10,
-          bottom: 8,
+          bottom: 32,
           range: year,
           cellSize: ['auto', 11],
           splitLine: { show: false },
@@ -121,7 +135,7 @@ export function EChartHeatmapBox({
     );
   }, [year, entries, maxCount, columnName]);
 
-  return <div ref={containerRef} style={{ width: '100%', height: '126px' }} />;
+  return <div ref={containerRef} style={{ width: '100%', height: '158px' }} />;
 }
 
 export default EChartHeatmapBox;

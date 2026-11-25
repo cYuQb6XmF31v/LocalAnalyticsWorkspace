@@ -292,7 +292,7 @@ function clampMenuPosition(x: number, y: number): { left: number; top: number } 
 
 function CanvasInner({ onOpenTemplates }: CanvasWorkspaceProps) {
   const { state, dispatch } = useProject();
-  const { fitView, screenToFlowPosition, setViewport } = useReactFlow();
+  const { fitView, screenToFlowPosition, setViewport, zoomIn, zoomOut } = useReactFlow();
   const [configElementId, setConfigElementId] = useState<string | null>(null);
   const [cursorPos, setCursorPos] = useState<Position | null>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
@@ -502,6 +502,21 @@ function CanvasInner({ onOpenTemplates }: CanvasWorkspaceProps) {
 
   const menuCoords = contextMenu ? clampMenuPosition(contextMenu.screenX, contextMenu.screenY) : null;
 
+  // Ctrl+wheel anywhere on canvas surface → zoom viewport
+  const handleSurfaceWheel = useCallback(
+    (e: React.WheelEvent<HTMLDivElement>) => {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        if (e.deltaY < 0) {
+          zoomIn({ duration: 150 });
+        } else {
+          zoomOut({ duration: 150 });
+        }
+      }
+    },
+    [zoomIn, zoomOut],
+  );
+
   return (
     <div className="cw-root" onKeyDown={handleSurfaceKeyDown}>
       <div className="cw-toolbar">
@@ -629,6 +644,7 @@ function CanvasInner({ onOpenTemplates }: CanvasWorkspaceProps) {
           });
         }}
         onPointerLeave={() => setCursorPos(null)}
+        onWheel={handleSurfaceWheel}
       >
         <ReactFlow
           key={activePage.id}

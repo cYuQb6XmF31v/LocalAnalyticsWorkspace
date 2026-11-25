@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import * as echarts from 'echarts/core';
 import { BarChart, LineChart, PieChart, ScatterChart } from 'echarts/charts';
 import {
+  DataZoomComponent,
   GridComponent,
   LegendComponent,
   TooltipComponent,
@@ -13,6 +14,7 @@ echarts.use([
   BarChart,
   PieChart,
   ScatterChart,
+  DataZoomComponent,
   GridComponent,
   TooltipComponent,
   LegendComponent,
@@ -101,6 +103,11 @@ export function EChartBox({ payload }: { payload: EChartPayload }) {
       axisLabel: { color: '#8e96aa', fontSize: 10 },
     };
 
+    // dataZoom for scroll-wheel zooming inside charts
+    const insideDataZoom = [
+      { type: 'inside', xAxisIndex: 0, zoomOnMouseWheel: true, moveOnMouseMove: false, preventDefaultMouseMove: false },
+    ];
+
     const splitLine = {
       lineStyle: { color: 'rgba(255, 255, 255, 0.06)' },
     };
@@ -153,18 +160,24 @@ export function EChartBox({ payload }: { payload: EChartPayload }) {
             type: 'scroll',
             textStyle: { color: '#a1a7b8', fontSize: 10 },
           },
-          grid: { top: 28, right: 14, bottom: 26, left: 44 },
+          grid: { top: 28, right: 14, bottom: 48, left: 14, containLabel: true },
           xAxis: {
             type: 'category',
             data: payload.xLabels,
             ...axisStyle,
-            axisLabel: { ...axisStyle.axisLabel, overflow: 'truncate', width: 72 },
+            axisLabel: {
+              ...axisStyle.axisLabel,
+              interval: 0,
+              rotate: payload.xLabels.length > 6 ? 35 : 0,
+              hideOverlap: true,
+            },
           },
           yAxis: {
             type: 'value',
             splitLine,
             axisLabel: axisStyle.axisLabel,
           },
+          dataZoom: insideDataZoom,
           series: payload.series.map((s) => ({
             name: s.name,
             type: 'bar',
@@ -194,12 +207,13 @@ export function EChartBox({ payload }: { payload: EChartPayload }) {
               return `${p.data.name}<br/>${payload.xName}: ${p.data.value[0]}<br/>${payload.yName}: ${p.data.value[1]}`;
             },
           },
-          grid: { top: 16, right: 16, bottom: 28, left: 46 },
+          grid: { top: 16, right: 16, bottom: 32, left: 14, containLabel: true },
           xAxis: {
             type: 'value',
             scale: true,
             splitLine,
             ...axisStyle,
+            axisLabel: { ...axisStyle.axisLabel, hideOverlap: true },
           },
           yAxis: {
             type: 'value',
@@ -207,6 +221,10 @@ export function EChartBox({ payload }: { payload: EChartPayload }) {
             splitLine,
             axisLabel: axisStyle.axisLabel,
           },
+          dataZoom: [
+            { type: 'inside', xAxisIndex: 0, zoomOnMouseWheel: true, moveOnMouseMove: false },
+            { type: 'inside', yAxisIndex: 0, zoomOnMouseWheel: false, moveOnMouseMove: false },
+          ],
           series: [
             {
               type: 'scatter',
@@ -230,6 +248,9 @@ export function EChartBox({ payload }: { payload: EChartPayload }) {
     // basic: line-chart, bar-chart, histogram
     const isLine = payload.chartType === 'line-chart';
     const isHist = payload.chartType === 'histogram';
+    const labelCount = payload.labels.length;
+    // rotate labels when there are many categories so they don't overlap
+    const labelRotate = labelCount > 8 ? 45 : labelCount > 5 ? 30 : 0;
 
     chart.setOption(
       {
@@ -238,9 +259,9 @@ export function EChartBox({ payload }: { payload: EChartPayload }) {
         grid: {
           top: 14,
           right: 14,
-          bottom: 28,
-          left: 44,
-          containLabel: false,
+          bottom: labelRotate > 0 ? 60 : 42,
+          left: 14,
+          containLabel: true,
         },
         tooltip: {
           ...baseTooltip,
@@ -252,8 +273,9 @@ export function EChartBox({ payload }: { payload: EChartPayload }) {
           ...axisStyle,
           axisLabel: {
             ...axisStyle.axisLabel,
-            overflow: 'truncate',
-            width: 72,
+            interval: 0,
+            rotate: labelRotate,
+            hideOverlap: true,
           },
         },
         yAxis: {
@@ -261,6 +283,7 @@ export function EChartBox({ payload }: { payload: EChartPayload }) {
           splitLine,
           axisLabel: axisStyle.axisLabel,
         },
+        dataZoom: insideDataZoom,
         series: [
           {
             name: payload.seriesName,

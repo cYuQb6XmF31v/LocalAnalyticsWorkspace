@@ -76,7 +76,8 @@ export function ElementFrame({
         minWidth={180}
         minHeight={110}
         color="#7c5cff"
-        handleStyle={{ width: 8, height: 8, borderRadius: 2 }}
+        handleStyle={{ width: 10, height: 10, borderRadius: 3, background: '#7c5cff', border: '2px solid #fff2' }}
+        lineStyle={{ borderColor: '#7c5cff', borderWidth: 2, opacity: 0.6 }}
         onResizeEnd={(_event, params) => {
           dispatch({
             type: 'RESIZE_ELEMENT',
