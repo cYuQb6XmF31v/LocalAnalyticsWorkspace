@@ -467,6 +467,7 @@ export const EChartBox = forwardRef<EChartBoxHandle, EChartBoxProps>(function EC
               : { show: false },
             markLine: showAvgLine
               ? {
+                  animation: false,
                   silent: true,
                   symbol: 'none',
                   lineStyle: { color: '#fbbf24', type: 'dashed', width: 1.5 },

@@ -1,4 +1,4 @@
-import { lazy, Suspense, useRef } from 'react';
+import { lazy, Suspense, useMemo, useRef } from 'react';
 import type { NodeProps } from '@xyflow/react';
 import {
   AlertTriangle,
@@ -312,7 +312,10 @@ export function ChartNode({ data, selected }: NodeProps<CanvasFlowNode>) {
   const { state, dispatch } = useProject();
   const chartRef = useRef<EChartBoxHandle | null>(null);
   const element = data.element as AnyChartElement;
-  const vm = buildChartViewModel(state.project.primaryDataset, element);
+  const vm = useMemo(
+    () => buildChartViewModel(state.project.primaryDataset, element),
+    [state.project.primaryDataset, element],
+  );
 
   const isAxisChart =
     element.type === 'line-chart' ||
