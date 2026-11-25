@@ -12,8 +12,8 @@
 
 .modal-dialog {
   width: 100%;
-  max-width: 680px;
-  max-height: min(86vh, 760px);
+  max-width: min(920px, 94vw);
+  max-height: 90vh;
   display: flex;
   flex-direction: column;
   background-color: var(--bg-panel);

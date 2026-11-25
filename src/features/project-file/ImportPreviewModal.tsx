@@ -69,13 +69,17 @@ export function ImportPreviewModal({
         {parsed.kind === 'project' && (
           <div className="import-meta-card">
             <span className="import-meta-label">{uk.importModal.projectName}</span>
-            <span className="import-meta-value">{parsed.project.name}</span>
+            <span className="import-meta-value" title={parsed.project.name}>
+              {parsed.project.name}
+            </span>
           </div>
         )}
 
         <div className="import-meta-card">
           <span className="import-meta-label">{uk.importModal.datasetName}</span>
-          <span className="import-meta-value">{dataset.name}</span>
+          <span className="import-meta-value" title={dataset.name}>
+            {dataset.name}
+          </span>
         </div>
 
         <div className="import-meta-card">
