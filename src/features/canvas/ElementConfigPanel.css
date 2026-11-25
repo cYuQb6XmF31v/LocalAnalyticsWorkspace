@@ -4,7 +4,7 @@
   right: 12px;
   z-index: 15;
   width: 280px;
-  max-height: calc(100% - 60px);
+  max-height: min(400px, calc(100% - 64px));
   display: flex;
   flex-direction: column;
   background-color: var(--bg-panel);
@@ -15,6 +15,7 @@
 }
 
 .config-panel-header {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -26,8 +27,11 @@
 }
 
 .config-panel-body {
+  flex: 1;
+  min-height: 0;
   padding: 12px;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
   display: flex;
   flex-direction: column;
   gap: 10px;

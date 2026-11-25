@@ -471,7 +471,12 @@ export const EChartBox = forwardRef<EChartBoxHandle, EChartBoxProps>(function EC
                   symbol: 'none',
                   lineStyle: { color: '#fbbf24', type: 'dashed', width: 1.5 },
                   label: {
+                    position: 'insideEndTop',
+                    distance: [0, 4],
                     color: '#fbbf24',
+                    backgroundColor: 'rgba(16, 18, 24, 0.88)',
+                    borderRadius: 3,
+                    padding: [2, 5],
                     fontSize: 10,
                     formatter: (p: { value?: unknown }) =>
                       `μ: ${formatCompactValue(p.value)}${asPercent ? '%' : ''}`,

@@ -123,6 +123,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         if (undoStackRef.current.length > MAX_UNDO_HISTORY) {
           undoStackRef.current.shift();
         }
+        latestStateRef.current = simulatedNext;
         setCanUndo(true);
       }
     }
@@ -147,27 +148,40 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       if (!(event.ctrlKey || event.metaKey) || event.shiftKey || event.altKey) {
         return;
       }
-      if (event.key.toLowerCase() !== 'z') {
+      // Support both Latin ('z') and non-Latin keyboard layouts like Ukrainian ('я' on KeyZ)
+      const isZKey = event.code === 'KeyZ' || event.key.toLowerCase() === 'z';
+      if (!isZKey) {
         return;
       }
       const target = event.target as HTMLElement | null;
-      if (
-        target &&
-        (target.tagName === 'INPUT' ||
-          target.tagName === 'TEXTAREA' ||
-          target.tagName === 'SELECT' ||
-          target.isContentEditable)
-      ) {
-        return;
+      if (target) {
+        if (target.isContentEditable || target.tagName === 'TEXTAREA') {
+          return;
+        }
+        if (target.tagName === 'INPUT') {
+          const inputType = (target as HTMLInputElement).type.toLowerCase();
+          if (
+            inputType === 'text' ||
+            inputType === 'search' ||
+            inputType === 'url' ||
+            inputType === 'tel' ||
+            inputType === 'password' ||
+            inputType === 'number' ||
+            inputType === 'email'
+          ) {
+            return;
+          }
+        }
       }
       if (undoStackRef.current.length > 0) {
         event.preventDefault();
+        event.stopPropagation();
         undo();
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener('keydown', handleKeyDown, { capture: true });
+    return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
   }, [undo]);
 
   const persistSnapshot = useCallback((targetState: WorkspaceState) => {

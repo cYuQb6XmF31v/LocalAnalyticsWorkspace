@@ -32,6 +32,7 @@ import {
   StickyNote,
   Table,
   Trash2,
+  Undo2,
 } from 'lucide-react';
 import { useProject } from '../../app/ProjectContext';
 import { createStableId } from '../../domain/id';
@@ -549,7 +550,7 @@ function clampMenuPosition(x: number, y: number): { left: number; top: number } 
 }
 
 function CanvasInner({ onOpenTemplates }: CanvasWorkspaceProps) {
-  const { state, dispatch } = useProject();
+  const { state, dispatch, undo, canUndo } = useProject();
   const { fitView, screenToFlowPosition, setViewport, getViewport } = useReactFlow();
   const [configElementId, setConfigElementId] = useState<string | null>(null);
   const [cursorPos, setCursorPos] = useState<Position | null>(null);
@@ -600,15 +601,29 @@ function CanvasInner({ onOpenTemplates }: CanvasWorkspaceProps) {
     );
   }, [activePage.elements, activePage.id, state.selectedElementId, state.selectedElementIds, handleOpenConfig]);
 
-  // Apply real-time drag and resize changes inside React Flow state
+  // Apply real-time drag and resize changes inside React Flow state, preserving resize snap
   const handleNodesChange = useCallback((changes: NodeChangeset<CanvasFlowNode>) => {
     setFlowNodes((prev) => {
       const updated = changes.applyTo(prev);
       const changeArray = changes.toArray();
       return updated.map((node) => {
+        const snapRect = snappedResizeRef.current[node.id];
         const dimChange = changeArray.find(
           (c) => c.type === 'dimensions' && c.id === node.id,
         );
+        if (snapRect && (dimChange || changeArray.some((c) => c.type === 'position' && c.id === node.id))) {
+          return {
+            ...node,
+            position: { x: snapRect.x, y: snapRect.y },
+            width: snapRect.width,
+            height: snapRect.height,
+            style: {
+              ...node.style,
+              width: snapRect.width,
+              height: snapRect.height,
+            },
+          };
+        }
         if (dimChange && dimChange.type === 'dimensions' && dimChange.dimensions) {
           return {
             ...node,
@@ -866,28 +881,6 @@ function CanvasInner({ onOpenTemplates }: CanvasWorkspaceProps) {
       snappedResizeRef.current[elementId] = res.rect;
       setSnapGuides(res.guides);
       setRelativeBadge(res.badge);
-
-      if (
-        res.guides.length > 0 &&
-        (res.rect.x !== Math.round(rect.x) ||
-          res.rect.y !== Math.round(rect.y) ||
-          res.rect.width !== Math.round(rect.width) ||
-          res.rect.height !== Math.round(rect.height))
-      ) {
-        setFlowNodes((prev) =>
-          prev.map((n) =>
-            n.id === elementId
-              ? {
-                  ...n,
-                  position: { x: res.rect.x, y: res.rect.y },
-                  width: res.rect.width,
-                  height: res.rect.height,
-                  style: { ...n.style, width: res.rect.width, height: res.rect.height },
-                }
-              : n,
-          ),
-        );
-      }
     },
     [snapEnabled, activePage.elements, flowNodes],
   );
@@ -908,7 +901,11 @@ function CanvasInner({ onOpenTemplates }: CanvasWorkspaceProps) {
         const res = computeResizeSnap(elementId, rect, origRect, flowNodes);
         finalRect = res.rect;
       }
-      delete snappedResizeRef.current[elementId];
+      // Keep snapped rect in ref briefly so XYResizer's trailing onChange doesn't overwrite it
+      snappedResizeRef.current[elementId] = finalRect;
+      window.setTimeout(() => {
+        delete snappedResizeRef.current[elementId];
+      }, 0);
       setSnapGuides([]);
       setRelativeBadge(null);
       setFlowNodes((prev) =>
@@ -1027,6 +1024,16 @@ function CanvasInner({ onOpenTemplates }: CanvasWorkspaceProps) {
         </div>
 
         <div className="cw-toolbar-group">
+          <button
+            type="button"
+            className="icon-btn icon-btn--outlined"
+            disabled={!canUndo}
+            onClick={undo}
+            title="Скасувати останню дію (Ctrl+Z)"
+            aria-label="Скасувати (Ctrl+Z)"
+          >
+            <Undo2 size={13} />
+          </button>
           <button
             type="button"
             className={`icon-btn icon-btn--outlined ${snapEnabled ? 'icon-btn--active' : ''}`}

@@ -274,7 +274,7 @@ export function ElementConfigPanel({ pageId, element, onClose }: ElementConfigPa
   };
 
   return (
-    <aside className="config-panel nodrag nopan" aria-label="Налаштування елемента Canvas">
+    <aside className="config-panel nodrag nopan nowheel" aria-label="Налаштування елемента Canvas">
       <div className="config-panel-header">
         <span>Налаштування елемента</span>
         <button type="button" className="icon-btn" onClick={onClose} aria-label="Закрити">
