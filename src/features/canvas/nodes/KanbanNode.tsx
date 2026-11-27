@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { NodeProps } from '@xyflow/react';
 import { AlertTriangle, Columns3 } from 'lucide-react';
 import { useProject } from '../../../app/ProjectContext';
+import { CustomSelect } from '../../../components/CustomSelect';
 import type { CellValue, KanbanCanvasElement } from '../../../domain/models';
 import { isJoinDatasetId } from '../../source-data/dataPipeline';
 import { useElementDataset } from '../../source-data/useElementDataset';
@@ -114,12 +115,17 @@ export function KanbanNode({ data, selected }: NodeProps<CanvasFlowNode>) {
                           </div>
                         ))}
                         {result.lanes.length > 1 && (
-                          <select
+                          <CustomSelect
+                            size="xs"
                             className="kanban-card-move"
-                            aria-label={`Перемістити картку ${card.title}`}
+                            ariaLabel={`Перемістити картку ${card.title}`}
                             value={lane.key}
-                            onChange={(e) => {
-                              const target = result.lanes.find((l) => l.key === e.target.value);
+                            options={result.lanes.map((opt) => ({
+                              value: opt.key,
+                              label: `→ ${opt.label}`,
+                            }))}
+                            onChange={(val) => {
+                              const target = result.lanes.find((l) => l.key === val);
                               if (target) {
                                 moveCardToLane(
                                   card.rowId,
@@ -128,13 +134,7 @@ export function KanbanNode({ data, selected }: NodeProps<CanvasFlowNode>) {
                                 );
                               }
                             }}
-                          >
-                            {result.lanes.map((opt) => (
-                              <option key={opt.key} value={opt.key}>
-                                → {opt.label}
-                              </option>
-                            ))}
-                          </select>
+                          />
                         )}
                       </div>
                     ))}

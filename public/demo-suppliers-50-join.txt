@@ -1,0 +1,52 @@
+# Dataset: Постачальники та склад (50 SKU для Join)
+# Columns: sku:text;catalog_name:text;supplier:text;brand:text;warehouse:text;lead_time_days:number;min_order_qty:number;cost_uah:number;promo_active:boolean
+SKU-001;Ноутбук AirBook 14;TechImport UA;AirBook;Київ-Центр;5;1;24500;true
+SKU-002;Монітор Vision 27;DisplayHub;VisionTech;Київ-Центр;4;2;8200;false
+SKU-003;Механічна клавіатура K8;KeyCraft;MechLab;Львів-Захід;3;5;2100;true
+SKU-004;Миша Pro Wireless;KeyCraft;MechLab;Львів-Захід;3;10;1150;false
+SKU-005;Навушники Studio ANC;SoundWave;AudioCore;Київ-Центр;6;2;4300;true
+SKU-006;SSD NVMe 1TB;SiliconTrade;FlashMax;Дніпро-Схід;2;10;2650;false
+SKU-007;Веб-камера 4K Stream;OpticPro;StreamCam;Львів-Захід;4;3;2700;true
+SKU-008;Док-станція USB-C;CablePlus;PortLink;Київ-Центр;2;5;1800;false
+SKU-009;Мікрофон PodCast Pro;SoundWave;AudioCore;Одеса-Південь;5;2;3400;false
+SKU-010;Ноутбук DevPro 16;TechImport UA;DevPro;Київ-Центр;7;1;41000;true
+SKU-011;Монітор Curve 34;DisplayHub;VisionTech;Дніпро-Схід;5;1;16200;false
+SKU-012;Роутер WiFi 6E Mesh;NetLine;MeshWave;Київ-Центр;3;3;5200;true
+SKU-013;Крісло ErgoMesh Pro;ErgoSpace;ComfortWork;Львів-Захід;7;1;9500;false
+SKU-014;Стіл з електроприводом;ErgoSpace;ComfortWork;Київ-Центр;10;1;13800;false
+SKU-015;Лампа на монітор LED;CablePlus;LumenBar;Одеса-Південь;2;10;980;true
+SKU-016;Планшет графічний M10;KeyCraft;DrawPad;Київ-Центр;4;3;3100;false
+SKU-017;Зовнішній HDD 4TB;SiliconTrade;VaultDrive;Дніпро-Схід;3;4;3200;false
+SKU-018;ДБЖ Smart 1200VA;VoltGuard;PowerSafe;Київ-Центр;5;2;6100;true
+SKU-019;Хаб Thunderbolt 4;CablePlus;PortLink;Львів-Захід;4;3;4400;false
+SKU-020;Адаптер GaN 100W;VoltGuard;GaNCharge;Одеса-Південь;2;10;1150;true
+SKU-021;Ноутбук UltraSlim 13;TechImport UA;UltraSlim;Київ-Центр;6;1;31000;false
+SKU-022;Монітор Office 24;DisplayHub;VisionTech;Львів-Захід;3;5;4500;true
+SKU-023;Колонки Studio Duo;SoundWave;AudioCore;Дніпро-Схід;5;2;3900;false
+SKU-024;Клавіатура LowProfile;KeyCraft;MechLab;Київ-Центр;3;5;1750;false
+SKU-025;Кронштейн подвійний VESA;ErgoSpace;ComfortWork;Одеса-Південь;4;4;1900;false
+SKU-026;Світч Gigabit 16p;NetLine;MeshWave;Дніпро-Схід;3;2;3300;false
+SKU-027;Камера конференц-залу;OpticPro;StreamCam;Київ-Центр;8;1;11800;true
+SKU-028;Килимок DeskMat XL;CablePlus;SoftDesk;Львів-Захід;1;20;390;false
+SKU-029;SSD Портативний 2TB;SiliconTrade;FlashMax;Київ-Центр;3;4;4600;true
+SKU-030;Сканер документів A4;OfficeGear;DocScan;Дніпро-Схід;5;2;7900;false
+SKU-031;Принтер Laser Compact;OfficeGear;LaserJetUA;Київ-Центр;4;2;5800;false
+SKU-032;Повербанк 27000mAh;VoltGuard;GaNCharge;Львів-Захід;2;10;1750;true
+SKU-033;Гарнітура CallCenter USB;SoundWave;VoiceLine;Київ-Центр;2;10;880;false
+SKU-034;Трекпад бездротовий;KeyCraft;DrawPad;Одеса-Південь;4;3;2800;false
+SKU-035;Монітор Creator 32 4K;DisplayHub;CreatorPro;Київ-Центр;7;1;21500;true
+SKU-036;Кабель HDMI 2.1 3m;CablePlus;PortLink;Дніпро-Схід;1;25;280;false
+SKU-037;Точка доступу WiFi 6;NetLine;MeshWave;Львів-Захід;3;4;3600;false
+SKU-038;Шредер офісний CrossCut;OfficeGear;DocScan;Київ-Центр;6;2;4100;false
+SKU-039;Петличний мікрофон Duo;OpticPro;StreamCam;Одеса-Південь;4;4;2300;true
+SKU-040;Сетевий фільтр Smart 6;VoltGuard;PowerSafe;Дніпро-Схід;2;15;790;false
+SKU-041;Ноутбук WorkMate 15;TechImport UA;WorkMate;Київ-Центр;5;1;21900;false
+SKU-042;NAS Сховище 2-Bay;SiliconTrade;VaultDrive;Львів-Захід;6;1;9700;true
+SKU-043;Підставка під ноутбук;ErgoSpace;ComfortWork;Дніпро-Схід;2;10;780;false
+SKU-044;Кільцева лампа Studio 18;OpticPro;LumenBar;Київ-Центр;3;4;1850;false
+SKU-045;Кардридер SD UHS-II;CablePlus;FlashMax;Одеса-Південь;2;10;560;false
+SKU-046;Комутатор PoE 24p;NetLine;MeshWave;Київ-Центр;9;1;6900;false
+SKU-047;Підставка Dual Arm;ErgoSpace;ComfortWork;Львів-Захід;5;2;5400;false
+SKU-048;Інвертор PureSine 2000W;VoltGuard;PowerSafe;Дніпро-Схід;10;1;12900;true
+SKU-049;SSD Enterprise 4TB;SiliconTrade;FlashMax;Одеса-Південь;7;1;14200;false
+SKU-050;Калібратор кольору Pro;DisplayHub;CreatorPro;Київ-Центр;8;1;18900;false

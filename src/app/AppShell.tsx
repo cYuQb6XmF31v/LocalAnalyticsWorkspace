@@ -15,10 +15,12 @@ import {
   PanelRightOpen,
   Save,
   ShieldCheck,
+  Sparkles,
   Table2,
   X,
 } from 'lucide-react';
 import { Modal } from '../components/Modal';
+import { UiEffectsPopover } from './uiEffects';
 import { CanvasWorkspace } from '../features/canvas/CanvasWorkspace';
 import { GraphViewPage } from '../features/canvas/GraphViewPage';
 import { ProjectTree } from '../features/canvas/ProjectTree';
@@ -90,7 +92,9 @@ export function AppShell() {
   const [linkedFileName, setLinkedFileName] = useState<string | null>(
     () => getActiveFileHandleInfo()?.fileName ?? null,
   );
+  const [isEffectsOpen, setIsEffectsOpen] = useState(false);
 
+  const effectsWrapRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const shellBodyRef = useRef<HTMLElement | null>(null);
   const dragStartRef = useRef<{
@@ -114,6 +118,28 @@ export function AppShell() {
     window.addEventListener('hashchange', syncFromHash);
     return () => window.removeEventListener('hashchange', syncFromHash);
   }, []);
+
+  useEffect(() => {
+    if (!isEffectsOpen) return;
+    const handleOutside = (e: PointerEvent) => {
+      if (
+        effectsWrapRef.current &&
+        e.target instanceof Node &&
+        !effectsWrapRef.current.contains(e.target)
+      ) {
+        setIsEffectsOpen(false);
+      }
+    };
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsEffectsOpen(false);
+    };
+    window.addEventListener('pointerdown', handleOutside);
+    window.addEventListener('keydown', handleKey);
+    return () => {
+      window.removeEventListener('pointerdown', handleOutside);
+      window.removeEventListener('keydown', handleKey);
+    };
+  }, [isEffectsOpen]);
 
   const navigateTo = useCallback((view: ActiveView) => {
     setActiveView(view);
@@ -460,6 +486,20 @@ export function AppShell() {
           </span>
 
           <span className="shell-divider desktop-only" aria-hidden="true" />
+
+          <div ref={effectsWrapRef} className="fx-popover-wrap">
+            <button
+              type="button"
+              className={`icon-btn icon-btn--outlined ${isEffectsOpen ? 'icon-btn--active' : ''}`}
+              onClick={() => setIsEffectsOpen((prev) => !prev)}
+              aria-expanded={isEffectsOpen}
+              title="Налаштування інтерактивних ефектів інтерфейсу"
+            >
+              <Sparkles size={14} />
+              <span className="desktop-only">Ефекти</span>
+            </button>
+            {isEffectsOpen && <UiEffectsPopover onClose={() => setIsEffectsOpen(false)} />}
+          </div>
 
           <button
             type="button"

@@ -1,6 +1,7 @@
 import { lazy, Suspense, useRef, useState } from 'react';
 import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useProject } from '../../app/ProjectContext';
+import { CustomSelect } from '../../components/CustomSelect';
 import type { Dataset } from '../../domain/models';
 import { evaluateDatasetFormulas } from './formulaEngine';
 import { computeActivityHeatmap } from '../visualizations/transforms';
@@ -105,18 +106,15 @@ export function ActivityHeatmapPanel({ dataset: datasetProp }: { dataset?: Datas
         <div className="heatmap-body">
           {dateColumns.length > 0 && (
             <div className="heatmap-controls">
-              <select
-                className="sd-select"
-                aria-label="Колонка дати для календаря"
+              <CustomSelect
+                size="sm"
+                mono
+                className="heatmap-col-select"
+                ariaLabel="Колонка дати для календаря"
                 value={effectiveColId ?? ''}
-                onChange={(e) => setSelectedDateColId(e.target.value || null)}
-              >
-                {dateColumns.map((col) => (
-                  <option key={col.id} value={col.id}>
-                    {col.name}
-                  </option>
-                ))}
-              </select>
+                options={dateColumns.map((col) => ({ value: col.id, label: col.name }))}
+                onChange={(val) => setSelectedDateColId(val || null)}
+              />
 
               {result.status === 'ok' && (
                 <div className="heatmap-year-nav" role="group" aria-label="Перемикач року календаря">
@@ -129,19 +127,18 @@ export function ActivityHeatmapPanel({ dataset: datasetProp }: { dataset?: Datas
                   >
                     <ChevronLeft size={12} />
                   </button>
-                  <select
-                    className="sd-select heatmap-year-select"
-                    aria-label="Рік календаря"
+                  <CustomSelect
+                    size="sm"
+                    mono
+                    className="heatmap-year-select"
+                    ariaLabel="Рік календаря"
                     value={result.year}
-                    onChange={(e) => setSelectedYear(e.target.value)}
-                  >
-                    {yearOptions.map((yr) => (
-                      <option key={yr} value={yr}>
-                        {yr}
-                        {result.availableYears.includes(yr) ? '' : ' (0)'}
-                      </option>
-                    ))}
-                  </select>
+                    options={yearOptions.map((yr) => ({
+                      value: yr,
+                      label: `${yr}${result.availableYears.includes(yr) ? '' : ' (0)'}`,
+                    }))}
+                    onChange={(val) => setSelectedYear(val)}
+                  />
                   <button
                     type="button"
                     className="sd-mini-btn"

@@ -47,7 +47,10 @@ export function PivotTableNode({ data, selected }: NodeProps<CanvasFlowNode>) {
           </div>
 
           <div className="canvas-table-scroll nodrag nopan nowheel">
-            <table className="canvas-table">
+            <table
+              className="canvas-table"
+              style={element.config.fontSize ? { fontSize: `${element.config.fontSize}px` } : undefined}
+            >
               <thead>
                 <tr>
                   <th>{result.rowColumnName}</th>

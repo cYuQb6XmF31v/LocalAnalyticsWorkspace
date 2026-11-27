@@ -5,13 +5,16 @@ import type {
   CanvasElementType,
   CanvasPage,
   CellValue,
+  ChartDataLabelPosition,
   ChartDisplayOptions,
+  ChartLegendPosition,
   ChartSortMode,
   Column,
   ColumnType,
   Dataset,
   DatasetJoin,
   ElementLink,
+  JoinType,
   Position,
   Project,
   ProjectFilter,
@@ -396,6 +399,38 @@ const VALID_SORT_MODES = new Set<ChartSortMode>([
   'value-desc',
 ]);
 
+const VALID_LEGEND_POSITIONS = new Set<ChartLegendPosition>([
+  'top',
+  'bottom',
+  'left',
+  'right',
+  'top-left',
+  'top-right',
+  'bottom-left',
+  'bottom-right',
+  'center',
+]);
+
+const VALID_DATA_LABEL_POSITIONS = new Set<ChartDataLabelPosition>([
+  'top',
+  'bottom',
+  'left',
+  'right',
+  'inside',
+  'insideTop',
+  'insideBottom',
+  'outside',
+]);
+
+const VALID_JOIN_TYPES = new Set<JoinType>([
+  'left',
+  'inner',
+  'right',
+  'full',
+  'left-anti',
+  'right-anti',
+]);
+
 function extractChartDisplayOptions(rawConfig: Record<string, unknown>): ChartDisplayOptions {
   const opts: ChartDisplayOptions = {};
   if (typeof rawConfig.showDataLabels === 'boolean') {
@@ -403,6 +438,12 @@ function extractChartDisplayOptions(rawConfig: Record<string, unknown>): ChartDi
   }
   if (typeof rawConfig.dataLabelFontSize === 'number' && Number.isFinite(rawConfig.dataLabelFontSize)) {
     opts.dataLabelFontSize = rawConfig.dataLabelFontSize;
+  }
+  if (
+    typeof rawConfig.dataLabelPosition === 'string' &&
+    VALID_DATA_LABEL_POSITIONS.has(rawConfig.dataLabelPosition as ChartDataLabelPosition)
+  ) {
+    opts.dataLabelPosition = rawConfig.dataLabelPosition as ChartDataLabelPosition;
   }
   if (typeof rawConfig.rotateLabels === 'boolean') {
     opts.rotateLabels = rawConfig.rotateLabels;
@@ -412,6 +453,12 @@ function extractChartDisplayOptions(rawConfig: Record<string, unknown>): ChartDi
   }
   if (typeof rawConfig.showLegend === 'boolean') {
     opts.showLegend = rawConfig.showLegend;
+  }
+  if (
+    typeof rawConfig.legendPosition === 'string' &&
+    VALID_LEGEND_POSITIONS.has(rawConfig.legendPosition as ChartLegendPosition)
+  ) {
+    opts.legendPosition = rawConfig.legendPosition as ChartLegendPosition;
   }
   if (typeof rawConfig.sortBy === 'string' && VALID_SORT_MODES.has(rawConfig.sortBy as ChartSortMode)) {
     opts.sortBy = rawConfig.sortBy as ChartSortMode;
@@ -537,12 +584,17 @@ function normalizeElementConfig(
   }
 
   if (elementType === 'pivot-table') {
+    const fontSize =
+      typeof rawConfig.fontSize === 'number' && Number.isFinite(rawConfig.fontSize)
+        ? Math.max(9, Math.min(24, Math.floor(rawConfig.fontSize)))
+        : undefined;
     return {
       title: title || 'Зведена таблиця',
       rowFieldId: resolveFieldReference(rawConfig.rowFieldId, columns),
       colFieldId: resolveFieldReference(rawConfig.colFieldId, columns),
       valueFieldId: resolveFieldReference(rawConfig.valueFieldId, columns),
       aggregation: parseAgg(rawConfig.aggregation, 'sum'),
+      ...(fontSize !== undefined ? { fontSize } : {}),
     };
   }
 
@@ -560,10 +612,16 @@ function normalizeElementConfig(
       ? Math.floor(rawConfig.maxRows)
       : undefined;
 
+  const fontSize =
+    typeof rawConfig.fontSize === 'number' && Number.isFinite(rawConfig.fontSize)
+      ? Math.max(9, Math.min(24, Math.floor(rawConfig.fontSize)))
+      : undefined;
+
   return {
     title: title || 'Таблиця',
     columnIds,
     ...(maxRows !== undefined ? { maxRows } : {}),
+    ...(fontSize !== undefined ? { fontSize } : {}),
   };
 }
 
@@ -824,7 +882,10 @@ function parseFullProjectTxt(lines: string[]): ParsedProjectImport {
           try {
             const parsed = JSON.parse(jTrimmed.slice('# Join-JSON:'.length).trim()) as DatasetJoin;
             if (parsed && parsed.id && parsed.leftDatasetId && parsed.rightDatasetId) {
-              joins.push(parsed);
+              const normalizedJoinType: JoinType = VALID_JOIN_TYPES.has(parsed.joinType)
+                ? parsed.joinType
+                : 'left';
+              joins.push({ ...parsed, joinType: normalizedJoinType });
             } else {
               errors.push({ line: jLineNum, message: 'Неповні дані з’єднання у # Join-JSON:.' });
             }

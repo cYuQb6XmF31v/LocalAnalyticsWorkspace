@@ -1375,7 +1375,7 @@ function collectElementFieldIds(config: Record<string, unknown>): string[] {
 }
 
 /**
- * Builds an Obsidian-style node/link graph of Project -> Canvas Pages -> Elements,
+ * Builds an interactive node/link graph of Project -> Canvas Pages -> Elements,
  * internal links, and optionally full Data Lineage (datasets, joins, formulas, filters, columns).
  */
 export function computeProjectGraph(
@@ -1581,4 +1581,16 @@ export function computeProjectGraph(
     linkCount,
     brokenLinkCount,
   };
+}
+
+/**
+ * Graph hover dwell delay in ms:
+ * - 0%   => Infinity (hover disabled)
+ * - 1%   => 2000 ms (2.00 s)
+ * - 100% => 0 ms (instant)
+ */
+export function sensitivityToDwellMs(sensitivity: number): number {
+  if (sensitivity <= 0) return Infinity;
+  if (sensitivity >= 100) return 0;
+  return Math.round(((100 - sensitivity) / 99) * 2000);
 }

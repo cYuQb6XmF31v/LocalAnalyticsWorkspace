@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { GitMerge, Link2, Plus, Trash2 } from 'lucide-react';
 import { useProject } from '../../app/ProjectContext';
+import { CustomSelect } from '../../components/CustomSelect';
 import { Modal } from '../../components/Modal';
 import { createStableId } from '../../domain/id';
 import type { DatasetJoin, JoinType } from '../../domain/models';
@@ -10,6 +11,15 @@ import './JoinsModal.css';
 interface JoinsModalProps {
   onClose: () => void;
 }
+
+const JOIN_BADGE: Record<JoinType, string> = {
+  left: 'LEFT ⋈',
+  inner: 'INNER ⋈',
+  right: 'RIGHT ⋈',
+  full: 'FULL ⋈',
+  'left-anti': 'L-ANTI ▷',
+  'right-anti': 'R-ANTI ◁',
+};
 
 export function JoinsModal({ onClose }: JoinsModalProps) {
   const { state, dispatch } = useProject();
@@ -84,8 +94,8 @@ export function JoinsModal({ onClose }: JoinsModalProps) {
     >
       <div className="jm-root">
         <p className="jm-intro">
-          Об’єднуйте поля з кількох таблиць за ключовими колонками (Left або Inner Join). Після
-          створення об’єднане джерело можна обрати у налаштуваннях будь-якого елемента на Canvas.
+          Об’єднуйте поля з кількох таблиць за ключовими колонками (Left, Inner, Right, Full або Anti
+          Join). Після створення об’єднане джерело можна обрати у налаштуваннях будь-якого елемента на Canvas.
         </p>
 
         {datasets.length < 2 && (
@@ -153,15 +163,19 @@ export function JoinsModal({ onClose }: JoinsModalProps) {
               <label className="jm-label" htmlFor="join-type">
                 Тип з’єднання
               </label>
-              <select
+              <CustomSelect
                 id="join-type"
-                className="jm-select"
                 value={joinType}
-                onChange={(e) => setJoinType(e.target.value as JoinType)}
-              >
-                <option value="left">LEFT JOIN — усі рядки лівої таблиці</option>
-                <option value="inner">INNER JOIN — лише збіги по ключу</option>
-              </select>
+                options={[
+                  { value: 'left', label: 'LEFT JOIN — усі рядки лівої таблиці' },
+                  { value: 'inner', label: 'INNER JOIN — лише збіги в обох таблицях' },
+                  { value: 'right', label: 'RIGHT JOIN — усі рядки правої таблиці' },
+                  { value: 'full', label: 'FULL OUTER JOIN — усі рядки обох таблиць' },
+                  { value: 'left-anti', label: 'LEFT ANTI JOIN — рядки лівої без пари праворуч' },
+                  { value: 'right-anti', label: 'RIGHT ANTI JOIN — рядки правої без пари ліворуч' },
+                ]}
+                onChange={(val) => setJoinType(val as JoinType)}
+              />
             </div>
           </div>
 
@@ -172,41 +186,35 @@ export function JoinsModal({ onClose }: JoinsModalProps) {
                 <label className="jm-label" htmlFor="join-left-ds">
                   Таблиця
                 </label>
-                <select
+                <CustomSelect
                   id="join-left-ds"
-                  className="jm-select"
                   value={leftDs?.id ?? ''}
-                  onChange={(e) => setLeftDatasetId(e.target.value)}
-                >
-                  {datasets.map((ds) => (
-                    <option key={ds.id} value={ds.id}>
-                      {ds.name} ({ds.rows.length} рядків)
-                    </option>
-                  ))}
-                </select>
+                  options={datasets.map((ds) => ({
+                    value: ds.id,
+                    label: `${ds.name} (${ds.rows.length} рядків)`,
+                  }))}
+                  onChange={(val) => setLeftDatasetId(val)}
+                />
               </div>
               <div className="jm-field">
                 <label className="jm-label" htmlFor="join-left-key">
                   Ключова колонка
                 </label>
-                <select
+                <CustomSelect
                   id="join-left-key"
-                  className="jm-select"
                   value={effectiveLeftKey}
-                  onChange={(e) => setLeftKeyColumnId(e.target.value)}
-                >
-                  {(leftDs?.columns ?? []).map((col) => (
-                    <option key={col.id} value={col.id}>
-                      {col.name} ({col.type})
-                    </option>
-                  ))}
-                </select>
+                  options={(leftDs?.columns ?? []).map((col) => ({
+                    value: col.id,
+                    label: `${col.name} (${col.type})`,
+                  }))}
+                  onChange={(val) => setLeftKeyColumnId(val)}
+                />
               </div>
             </div>
 
             <div className="jm-join-connector" aria-hidden="true">
               <Link2 size={14} />
-              <span>{joinType === 'left' ? 'LEFT ⋈' : 'INNER ⋈'}</span>
+              <span>{JOIN_BADGE[joinType]}</span>
             </div>
 
             <div className="jm-side-card">
@@ -215,35 +223,29 @@ export function JoinsModal({ onClose }: JoinsModalProps) {
                 <label className="jm-label" htmlFor="join-right-ds">
                   Таблиця
                 </label>
-                <select
+                <CustomSelect
                   id="join-right-ds"
-                  className="jm-select"
                   value={rightDs?.id ?? ''}
-                  onChange={(e) => setRightDatasetId(e.target.value)}
-                >
-                  {datasets.map((ds) => (
-                    <option key={ds.id} value={ds.id}>
-                      {ds.name} ({ds.rows.length} рядків)
-                    </option>
-                  ))}
-                </select>
+                  options={datasets.map((ds) => ({
+                    value: ds.id,
+                    label: `${ds.name} (${ds.rows.length} рядків)`,
+                  }))}
+                  onChange={(val) => setRightDatasetId(val)}
+                />
               </div>
               <div className="jm-field">
                 <label className="jm-label" htmlFor="join-right-key">
                   Ключова колонка
                 </label>
-                <select
+                <CustomSelect
                   id="join-right-key"
-                  className="jm-select"
                   value={effectiveRightKey}
-                  onChange={(e) => setRightKeyColumnId(e.target.value)}
-                >
-                  {(rightDs?.columns ?? []).map((col) => (
-                    <option key={col.id} value={col.id}>
-                      {col.name} ({col.type})
-                    </option>
-                  ))}
-                </select>
+                  options={(rightDs?.columns ?? []).map((col) => ({
+                    value: col.id,
+                    label: `${col.name} (${col.type})`,
+                  }))}
+                  onChange={(val) => setRightKeyColumnId(val)}
+                />
               </div>
             </div>
           </div>

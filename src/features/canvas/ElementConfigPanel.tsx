@@ -1,9 +1,12 @@
 import { useRef, useState } from 'react';
 import { Plus, Trash2, X } from 'lucide-react';
 import { useProject } from '../../app/ProjectContext';
+import { CustomSelect } from '../../components/CustomSelect';
 import type {
   CanvasElement,
   ChartAggregation,
+  ChartDataLabelPosition,
+  ChartLegendPosition,
   ChartSortMode,
   Column,
   ElementLink,
@@ -171,19 +174,18 @@ function FieldSelect({
       <label className="config-label" htmlFor={id}>
         {label}
       </label>
-      <select
+      <CustomSelect
         id={id}
-        className="config-select"
         value={exists && value ? value : ''}
-        onChange={(e) => onChange(e.target.value || null)}
-      >
-        <option value="">{emptyLabel}</option>
-        {columns.map((col) => (
-          <option key={col.id} value={col.id}>
-            {col.name} ({col.type})
-          </option>
-        ))}
-      </select>
+        options={[
+          { value: '', label: emptyLabel },
+          ...columns.map((col) => ({
+            value: col.id,
+            label: `${col.name} (${col.type})`,
+          })),
+        ]}
+        onChange={(val) => onChange(val || null)}
+      />
       {value && !exists && (
         <span className="config-warn">Раніше обрану колонку ({value}) видалено.</span>
       )}
@@ -209,18 +211,12 @@ function AggregationSelect({
       <label className="config-label" htmlFor={id}>
         {label}
       </label>
-      <select
+      <CustomSelect
         id={id}
-        className="config-select"
         value={value}
-        onChange={(e) => onChange(e.target.value as ChartAggregation)}
-      >
-        {AGGREGATIONS.map((agg) => (
-          <option key={agg.value} value={agg.value}>
-            {agg.label}
-          </option>
-        ))}
-      </select>
+        options={AGGREGATIONS.map((agg) => ({ value: agg.value, label: agg.label }))}
+        onChange={(val) => onChange(val as ChartAggregation)}
+      />
     </div>
   );
 }
@@ -448,25 +444,19 @@ export function ElementConfigPanel({ pageId, element, onClose }: ElementConfigPa
                 <label className="config-label" htmlFor="cfg-dataset">
                   Джерело даних (Таблиця / Join)
                 </label>
-                <select
+                <CustomSelect
                   id="cfg-dataset"
-                  className="config-select"
                   value={element.datasetId ?? state.project.primaryDataset.id}
-                  onChange={(e) =>
+                  options={datasetOptions.map((opt) => ({ value: opt.id, label: opt.label }))}
+                  onChange={(val) =>
                     dispatch({
                       type: 'SET_ELEMENT_DATASET',
                       pageId,
                       elementId: element.id,
-                      datasetId: e.target.value,
+                      datasetId: val,
                     })
                   }
-                >
-                  {datasetOptions.map((opt) => (
-                    <option key={opt.id} value={opt.id}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
+                />
               </div>
             )}
 
@@ -801,6 +791,13 @@ export function ElementConfigPanel({ pageId, element, onClose }: ElementConfigPa
               value={element.config.aggregation}
               onChange={(aggregation) => updateConfig({ ...element.config, aggregation })}
             />
+            <ScrubNumberControl
+              label="Розмір шрифту таблиці"
+              value={element.config.fontSize ?? 11}
+              min={9}
+              max={22}
+              onChange={(val) => updateConfig({ ...element.config, fontSize: val })}
+            />
           </>
         )}
 
@@ -857,6 +854,14 @@ export function ElementConfigPanel({ pageId, element, onClose }: ElementConfigPa
                 }}
               />
             </div>
+
+            <ScrubNumberControl
+              label="Розмір шрифту таблиці"
+              value={element.config.fontSize ?? 11}
+              min={9}
+              max={22}
+              onChange={(val) => updateConfig({ ...element.config, fontSize: val })}
+            />
           </>
         )}
 
@@ -885,18 +890,56 @@ export function ElementConfigPanel({ pageId, element, onClose }: ElementConfigPa
               </label>
 
               {element.config.showDataLabels && (
-                <ScrubNumberControl
-                  label="Розмір шрифту чисел"
-                  value={element.config.dataLabelFontSize ?? 10}
-                  min={8}
-                  max={22}
-                  onChange={(val) =>
-                    updateConfig({
-                      ...element.config,
-                      dataLabelFontSize: val,
-                    })
-                  }
-                />
+                <>
+                  <ScrubNumberControl
+                    label="Розмір шрифту чисел"
+                    value={element.config.dataLabelFontSize ?? 10}
+                    min={8}
+                    max={22}
+                    onChange={(val) =>
+                      updateConfig({
+                        ...element.config,
+                        dataLabelFontSize: val,
+                      })
+                    }
+                  />
+                  <div className="config-field" style={{ gap: 4 }}>
+                    <span className="config-label">Розташування чисел</span>
+                    <CustomSelect
+                      ariaLabel="Розташування чисел на графіку"
+                      value={
+                        element.config.dataLabelPosition ??
+                        (element.type === 'pie-chart'
+                          ? 'outside'
+                          : element.type === 'stacked-bar'
+                            ? 'inside'
+                            : 'top')
+                      }
+                      options={
+                        element.type === 'pie-chart'
+                          ? [
+                              { value: 'outside', label: 'Ззовні з виноскою' },
+                              { value: 'inside', label: 'Всередині сектора' },
+                            ]
+                          : [
+                              { value: 'top', label: 'Зверху (над елементом)' },
+                              { value: 'bottom', label: 'Знизу (під елементом)' },
+                              { value: 'left', label: 'Ліворуч від елемента' },
+                              { value: 'right', label: 'Праворуч від елемента' },
+                              { value: 'inside', label: 'По центру всередині' },
+                              { value: 'insideTop', label: 'Зверху всередині' },
+                              { value: 'insideBottom', label: 'Знизу всередині' },
+                            ]
+                      }
+                      onChange={(val) =>
+                        updateConfig({
+                          ...element.config,
+                          dataLabelPosition: val as ChartDataLabelPosition,
+                        })
+                      }
+                    />
+                  </div>
+                </>
               )}
 
               {(element.type === 'line-chart' ||
@@ -919,23 +962,57 @@ export function ElementConfigPanel({ pageId, element, onClose }: ElementConfigPa
               )}
 
               {element.type !== 'scatter' && (
-                <label className="config-check-row">
-                  <input
-                    type="checkbox"
-                    checked={
-                      element.type === 'pie-chart' || element.type === 'stacked-bar'
-                        ? element.config.showLegend !== false
-                        : Boolean(element.config.showLegend)
-                    }
-                    onChange={(e) =>
-                      updateConfig({
-                        ...element.config,
-                        showLegend: e.target.checked,
-                      })
-                    }
-                  />
-                  <span>Показувати легенду</span>
-                </label>
+                <>
+                  <label className="config-check-row">
+                    <input
+                      type="checkbox"
+                      checked={
+                        element.type === 'pie-chart' || element.type === 'stacked-bar'
+                          ? element.config.showLegend !== false
+                          : Boolean(element.config.showLegend)
+                      }
+                      onChange={(e) =>
+                        updateConfig({
+                          ...element.config,
+                          showLegend: e.target.checked,
+                        })
+                      }
+                    />
+                    <span>Показувати легенду</span>
+                  </label>
+
+                  {(element.type === 'pie-chart' || element.type === 'stacked-bar'
+                    ? element.config.showLegend !== false
+                    : Boolean(element.config.showLegend)) && (
+                    <div className="config-field" style={{ gap: 4 }}>
+                      <span className="config-label">Розташування легенди</span>
+                      <CustomSelect
+                        ariaLabel="Розташування легенди"
+                        value={
+                          element.config.legendPosition ??
+                          (element.type === 'pie-chart' ? 'bottom' : 'top')
+                        }
+                        options={[
+                          { value: 'top', label: 'Зверху (по центру)' },
+                          { value: 'bottom', label: 'Знизу (по центру)' },
+                          { value: 'left', label: 'Ліворуч' },
+                          { value: 'right', label: 'Праворуч' },
+                          { value: 'top-right', label: 'Зверху праворуч' },
+                          { value: 'top-left', label: 'Зверху ліворуч' },
+                          { value: 'bottom-right', label: 'Знизу праворуч' },
+                          { value: 'bottom-left', label: 'Знизу ліворуч' },
+                          { value: 'center', label: 'По центру (накладання)' },
+                        ]}
+                        onChange={(val) =>
+                          updateConfig({
+                            ...element.config,
+                            legendPosition: val as ChartLegendPosition,
+                          })
+                        }
+                      />
+                    </div>
+                  )}
+                </>
               )}
 
               <ScrubNumberControl
@@ -987,23 +1064,23 @@ export function ElementConfigPanel({ pageId, element, onClose }: ElementConfigPa
               <span className="config-label">Сортування та фільтри</span>
 
               {element.type !== 'scatter' && (
-                <select
-                  className="config-select"
-                  aria-label="Сортування діаграми"
+                <CustomSelect
+                  ariaLabel="Сортування діаграми"
                   value={element.config.sortBy ?? 'none'}
-                  onChange={(e) =>
+                  options={[
+                    { value: 'none', label: 'Без сортування (початковий порядок)' },
+                    { value: 'value-desc', label: 'За значенням (спадання ↓)' },
+                    { value: 'value-asc', label: 'За значенням (зростання ↑)' },
+                    { value: 'label-asc', label: 'За назвою (А → Я)' },
+                    { value: 'label-desc', label: 'За назвою (Я → А)' },
+                  ]}
+                  onChange={(val) =>
                     updateConfig({
                       ...element.config,
-                      sortBy: e.target.value as ChartSortMode,
+                      sortBy: val as ChartSortMode,
                     })
                   }
-                >
-                  <option value="none">Без сортування (початковий порядок)</option>
-                  <option value="value-desc">За значенням (спадання ↓)</option>
-                  <option value="value-asc">За значенням (зростання ↑)</option>
-                  <option value="label-asc">За назвою (А → Я)</option>
-                  <option value="label-desc">За назвою (Я → А)</option>
-                </select>
+                />
               )}
 
               <input
@@ -1114,37 +1191,30 @@ export function ElementConfigPanel({ pageId, element, onClose }: ElementConfigPa
             </div>
           )}
 
-          <select
-            className="config-select"
-            aria-label="Цільова сторінка посилання"
+          <CustomSelect
+            ariaLabel="Цільова сторінка посилання"
             value={selectedTargetPage?.id ?? ''}
-            onChange={(e) => {
-              setLinkPageId(e.target.value);
+            options={pages.map((p) => ({ value: p.id, label: `Сторінка: ${p.name}` }))}
+            onChange={(val) => {
+              setLinkPageId(val);
               setLinkElementId('');
             }}
-          >
-            {pages.map((p) => (
-              <option key={p.id} value={p.id}>
-                Сторінка: {p.name}
-              </option>
-            ))}
-          </select>
+          />
 
-          <select
-            className="config-select"
-            aria-label="Цільовий елемент (опціонально)"
+          <CustomSelect
+            ariaLabel="Цільовий елемент (опціонально)"
             value={linkElementId}
-            onChange={(e) => setLinkElementId(e.target.value)}
-          >
-            <option value="">— Вся сторінка —</option>
-            {(selectedTargetPage?.elements ?? [])
-              .filter((el) => el.id !== element.id)
-              .map((el) => (
-                <option key={el.id} value={el.id}>
-                  Елемент: {el.config.title || el.id}
-                </option>
-              ))}
-          </select>
+            options={[
+              { value: '', label: '— Вся сторінка —' },
+              ...(selectedTargetPage?.elements ?? [])
+                .filter((el) => el.id !== element.id)
+                .map((el) => ({
+                  value: el.id,
+                  label: `Елемент: ${el.config.title || el.id}`,
+                })),
+            ]}
+            onChange={(val) => setLinkElementId(val)}
+          />
 
           <div className="config-link-add-row">
             <input

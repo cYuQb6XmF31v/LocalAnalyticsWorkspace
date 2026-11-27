@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Filter, Plus, Trash2 } from 'lucide-react';
+import { CustomSelect } from '../../components/CustomSelect';
 import { Modal } from '../../components/Modal';
 import { createStableId } from '../../domain/id';
 import type { FilterOperator, FilterRule, ProjectFilter } from '../../domain/models';
@@ -178,18 +179,12 @@ export function FiltersModal({ pageId, onClose }: FiltersModalProps) {
                 <label className="jm-label" htmlFor="flt-ds">
                   Таблиця
                 </label>
-                <select
+                <CustomSelect
                   id="flt-ds"
-                  className="jm-select"
                   value={targetDs.id}
-                  onChange={(e) => setDatasetId(e.target.value)}
-                >
-                  {datasets.map((ds) => (
-                    <option key={ds.id} value={ds.id}>
-                      {ds.name}
-                    </option>
-                  ))}
-                </select>
+                  options={datasets.map((ds) => ({ value: ds.id, label: ds.name }))}
+                  onChange={(val) => setDatasetId(val)}
+                />
               </div>
             )}
 
@@ -197,36 +192,27 @@ export function FiltersModal({ pageId, onClose }: FiltersModalProps) {
               <label className="jm-label" htmlFor="flt-col">
                 Колонка
               </label>
-              <select
+              <CustomSelect
                 id="flt-col"
-                className="jm-select"
                 value={effectiveColId}
-                onChange={(e) => setColumnId(e.target.value)}
-              >
-                {targetDs.columns.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name} ({c.type})
-                  </option>
-                ))}
-              </select>
+                options={targetDs.columns.map((c) => ({
+                  value: c.id,
+                  label: `${c.name} (${c.type})`,
+                }))}
+                onChange={(val) => setColumnId(val)}
+              />
             </div>
 
             <div className="jm-field">
               <label className="jm-label" htmlFor="flt-op">
                 Умова
               </label>
-              <select
+              <CustomSelect
                 id="flt-op"
-                className="jm-select"
                 value={operator}
-                onChange={(e) => setOperator(e.target.value as FilterOperator)}
-              >
-                {OPERATORS.map((op) => (
-                  <option key={op.value} value={op.value}>
-                    {op.label}
-                  </option>
-                ))}
-              </select>
+                options={OPERATORS.map((op) => ({ value: op.value, label: op.label }))}
+                onChange={(val) => setOperator(val as FilterOperator)}
+              />
             </div>
 
             <div className="jm-field">

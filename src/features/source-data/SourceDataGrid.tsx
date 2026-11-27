@@ -10,6 +10,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { useProject } from '../../app/ProjectContext';
+import { CustomSelect } from '../../components/CustomSelect';
 import { Modal } from '../../components/Modal';
 import { createStableId } from '../../domain/id';
 import type { Column, ColumnType } from '../../domain/models';
@@ -188,21 +189,20 @@ export function SourceDataGrid({ onRequestImportTxt }: SourceDataGridProps) {
 
       <div className="sd-dataset-bar">
         <div className="sd-dataset-select-wrap">
-          <select
-            className="sd-select"
-            aria-label="Активна таблиця даних"
+          <CustomSelect
+            size="sm"
+            mono
+            ariaLabel="Активна таблиця даних"
             value={dataset.id}
-            onChange={(e) => {
-              setActiveDatasetId(e.target.value);
+            options={allDatasets.map((ds, idx) => ({
+              value: ds.id,
+              label: `${idx === 0 ? `★ ${ds.name}` : ds.name} (${ds.rows.length})`,
+            }))}
+            onChange={(val) => {
+              setActiveDatasetId(val);
               setEditingFormulaColId(null);
             }}
-          >
-            {allDatasets.map((ds, idx) => (
-              <option key={ds.id} value={ds.id}>
-                {idx === 0 ? `★ ${ds.name}` : ds.name} ({ds.rows.length})
-              </option>
-            ))}
-          </select>
+          />
           {!isPrimaryDataset && (
             <button
               type="button"
@@ -324,18 +324,17 @@ export function SourceDataGrid({ onRequestImportTxt }: SourceDataGridProps) {
               onChange={(e) => setNewColName(e.target.value)}
               autoFocus
             />
-            <select
-              className="sd-select"
-              aria-label={uk.sourceData.columnTypeLabel}
+            <CustomSelect
+              size="sm"
+              mono
+              ariaLabel={uk.sourceData.columnTypeLabel}
               value={newColType}
-              onChange={(e) => setNewColType(e.target.value as ColumnType)}
-            >
-              {SUPPORTED_COLUMN_TYPES.map((t) => (
-                <option key={t} value={t}>
-                  {uk.sourceData.types[t]}
-                </option>
-              ))}
-            </select>
+              options={SUPPORTED_COLUMN_TYPES.map((t) => ({
+                value: t,
+                label: uk.sourceData.types[t],
+              }))}
+              onChange={(val) => setNewColType(val as ColumnType)}
+            />
             <button
               type="button"
               className={`icon-btn icon-btn--outlined ${newColUseFormula ? 'icon-btn--active' : ''}`}
@@ -498,25 +497,24 @@ export function SourceDataGrid({ onRequestImportTxt }: SourceDataGridProps) {
                       />
 
                       <div className="sd-col-controls">
-                        <select
-                          className="sd-type-select"
-                          aria-label={`${uk.sourceData.columnTypeLabel} (${col.name})`}
+                        <CustomSelect
+                          size="xs"
+                          mono
+                          ariaLabel={`${uk.sourceData.columnTypeLabel} (${col.name})`}
                           value={col.type}
-                          onChange={(e) =>
+                          options={SUPPORTED_COLUMN_TYPES.map((t) => ({
+                            value: t,
+                            label: uk.sourceData.types[t],
+                          }))}
+                          onChange={(val) =>
                             dispatch({
                               type: 'CHANGE_COLUMN_TYPE',
                               datasetId: dataset.id,
                               columnId: col.id,
-                              columnType: e.target.value as ColumnType,
+                              columnType: val as ColumnType,
                             })
                           }
-                        >
-                          {SUPPORTED_COLUMN_TYPES.map((t) => (
-                            <option key={t} value={t}>
-                              {uk.sourceData.types[t]}
-                            </option>
-                          ))}
-                        </select>
+                        />
 
                         <div className="sd-col-btns">
                           <button
@@ -633,26 +631,28 @@ export function SourceDataGrid({ onRequestImportTxt }: SourceDataGridProps) {
                     return (
                       <td key={col.id} className="sd-td">
                         {col.type === 'boolean' && validation.valid ? (
-                          <select
-                            className="sd-cell-select"
-                            aria-label={`${col.name}, рядок ${rowIndex + 1}`}
+                          <CustomSelect
+                            size="xs"
+                            mono
+                            ariaLabel={`${col.name}, рядок ${rowIndex + 1}`}
                             value={
                               validation.parsed === null ? '' : String(validation.parsed)
                             }
-                            onChange={(e) =>
+                            options={[
+                              { value: '', label: uk.sourceData.emptyBooleanOption },
+                              { value: 'true', label: 'true' },
+                              { value: 'false', label: 'false' },
+                            ]}
+                            onChange={(val) =>
                               dispatch({
                                 type: 'UPDATE_CELL',
                                 datasetId: dataset.id,
                                 rowId: row.id,
                                 columnId: col.id,
-                                value: e.target.value === '' ? null : e.target.value,
+                                value: val === '' ? null : val,
                               })
                             }
-                          >
-                            <option value="">{uk.sourceData.emptyBooleanOption}</option>
-                            <option value="true">true</option>
-                            <option value="false">false</option>
-                          </select>
+                          />
                         ) : (
                           <input
                             type="text"

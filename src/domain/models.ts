@@ -24,7 +24,7 @@ export interface Dataset {
   unknownMetadata?: string[];
 }
 
-export type JoinType = 'left' | 'inner';
+export type JoinType = 'left' | 'inner' | 'right' | 'full' | 'left-anti' | 'right-anti';
 
 export interface DatasetJoin {
   id: string;
@@ -119,12 +119,35 @@ export interface KpiElementConfig {
 
 export type ChartSortMode = 'none' | 'label-asc' | 'label-desc' | 'value-asc' | 'value-desc';
 
+export type ChartLegendPosition =
+  | 'top'
+  | 'bottom'
+  | 'left'
+  | 'right'
+  | 'top-left'
+  | 'top-right'
+  | 'bottom-left'
+  | 'bottom-right'
+  | 'center';
+
+export type ChartDataLabelPosition =
+  | 'top'
+  | 'bottom'
+  | 'left'
+  | 'right'
+  | 'inside'
+  | 'insideTop'
+  | 'insideBottom'
+  | 'outside';
+
 export interface ChartDisplayOptions {
   showDataLabels?: boolean;
   dataLabelFontSize?: number;
+  dataLabelPosition?: ChartDataLabelPosition;
   rotateLabels?: boolean;
   axisLabelFontSize?: number;
   showLegend?: boolean;
+  legendPosition?: ChartLegendPosition;
   sortBy?: ChartSortMode;
   filterText?: string;
   topN?: number;
@@ -145,6 +168,7 @@ export interface TableViewElementConfig {
   title: string;
   columnIds: string[];
   maxRows?: number;
+  fontSize?: number;
 }
 
 export interface KanbanElementConfig {
@@ -189,6 +213,7 @@ export interface PivotTableElementConfig {
   colFieldId: string | null;
   valueFieldId: string | null;
   aggregation: ChartAggregation;
+  fontSize?: number;
 }
 
 export type CanvasElementConfig =

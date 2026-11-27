@@ -1,0 +1,255 @@
+# LOCAL-ANALYTICS-PROJECT
+# Format-Version: 2
+# Project-Name: Демо-аналітика (50 товарів + Join)
+
+[DATASET id="ds_orders"]
+# Name: Продажі товарів
+# Columns: order_id:text;date:date;sku:text;product:text;category:text;channel:text;quantity:number;unit_price:number;discount_pct:number;status:text;paid:boolean;revenue:number;margin:number
+# Column-Ids: order_id;date;sku;product;category;channel;quantity;unit_price;discount_pct;status;paid;revenue;margin
+# Formulas-JSON: {"revenue":"[quantity] * [unit_price] * (1 - [discount_pct] / 100)","margin":"[revenue] * 0.25"}
+ORD-1001;2025-02-14;SKU-001;Ноутбук AirBook 14;Ноутбуки;Онлайн;2;34000;5;Виконано;true;;
+ORD-1002;2025-03-08;SKU-002;Монітор Vision 27;Монітори;B2B;4;11500;10;Виконано;true;;
+ORD-1003;2025-04-19;SKU-003;Механічна клавіатура K8;Периферія;Онлайн;6;3200;0;Виконано;true;;
+ORD-1004;2025-05-11;SKU-004;Миша Pro Wireless;Периферія;Роздріб;10;1850;5;Виконано;true;;
+ORD-1005;2025-06-22;SKU-005;Навушники Studio ANC;Аудіо;Онлайн;3;6400;0;Виконано;true;;
+ORD-1006;2025-07-15;SKU-006;SSD NVMe 1TB;Накопичувачі;B2B;8;3900;8;Виконано;true;;
+ORD-1007;2025-08-03;SKU-007;Веб-камера 4K Stream;Відео;Онлайн;5;4100;0;Виконано;true;;
+ORD-1008;2025-09-12;SKU-008;Док-станція USB-C;Аксесуари;B2B;7;2900;5;Виконано;true;;
+ORD-1009;2025-10-28;SKU-009;Мікрофон PodCast Pro;Аудіо;Онлайн;4;5200;0;Виконано;true;;
+ORD-1010;2025-11-17;SKU-010;Ноутбук DevPro 16;Ноутбуки;B2B;2;56000;7;Виконано;true;;
+ORD-1011;2025-12-05;SKU-011;Монітор Curve 34;Монітори;Онлайн;2;22500;5;Виконано;true;;
+ORD-1012;2025-12-20;SKU-012;Роутер WiFi 6E Mesh;Мережі;Роздріб;5;7800;0;Виконано;true;;
+ORD-1013;2026-01-06;SKU-013;Крісло ErgoMesh Pro;Меблі;B2B;3;14200;10;Виконано;true;;
+ORD-1014;2026-01-12;SKU-014;Стіл з електроприводом;Меблі;B2B;2;19800;5;Виконано;true;;
+ORD-1015;2026-01-18;SKU-015;Лампа на монітор LED;Аксесуари;Онлайн;9;1650;0;Виконано;true;;
+ORD-1016;2026-01-24;SKU-016;Планшет графічний M10;Периферія;Онлайн;4;4800;5;Виконано;true;;
+ORD-1017;2026-02-02;SKU-017;Зовнішній HDD 4TB;Накопичувачі;Роздріб;6;4600;0;Виконано;true;;
+ORD-1018;2026-02-09;SKU-018;ДБЖ Smart 1200VA;Живлення;B2B;3;8900;5;Виконано;true;;
+ORD-1019;2026-02-15;SKU-019;Хаб Thunderbolt 4;Аксесуари;Онлайн;4;6700;0;Виконано;true;;
+ORD-1020;2026-02-21;SKU-020;Адаптер GaN 100W;Живлення;Роздріб;12;1950;10;Виконано;true;;
+ORD-1021;2026-03-03;SKU-021;Ноутбук UltraSlim 13;Ноутбуки;Онлайн;1;41500;0;Виконано;true;;
+ORD-1022;2026-03-10;SKU-022;Монітор Office 24;Монітори;B2B;10;6400;12;Виконано;true;;
+ORD-1023;2026-03-17;SKU-023;Колонки Studio Duo;Аудіо;Роздріб;4;5900;0;В обробці;false;;
+ORD-1024;2026-03-25;SKU-024;Клавіатура LowProfile;Периферія;Онлайн;7;2750;5;Виконано;true;;
+ORD-1025;2026-04-02;SKU-025;Кронштейн подвійний VESA;Меблі;B2B;5;3100;0;Виконано;true;;
+ORD-1026;2026-04-11;SKU-026;Світч Gigabit 16p;Мережі;B2B;3;4900;5;Виконано;true;;
+ORD-1027;2026-04-19;SKU-027;Камера конференц-залу;Відео;B2B;2;16500;8;У дорозі;true;;
+ORD-1028;2026-04-27;SKU-028;Килимок DeskMat XL;Аксесуари;Роздріб;15;750;0;Виконано;true;;
+ORD-1029;2026-05-05;SKU-029;SSD Портативний 2TB;Накопичувачі;Онлайн;4;6800;5;Виконано;true;;
+ORD-1030;2026-05-14;SKU-030;Сканер документів A4;Офіс;B2B;2;11200;0;Скасовано;false;;
+ORD-1031;2026-05-22;SKU-031;Принтер Laser Compact;Офіс;Роздріб;3;8400;5;Виконано;true;;
+ORD-1032;2026-06-03;SKU-032;Повербанк 27000mAh;Живлення;Онлайн;8;2850;0;Виконано;true;;
+ORD-1033;2026-06-12;SKU-033;Гарнітура CallCenter USB;Аудіо;B2B;14;1450;10;Виконано;true;;
+ORD-1034;2026-06-20;SKU-034;Трекпад бездротовий;Периферія;Онлайн;3;4200;0;В обробці;false;;
+ORD-1035;2026-07-04;SKU-035;Монітор Creator 32 4K;Монітори;B2B;2;29500;5;Виконано;true;;
+ORD-1036;2026-07-15;SKU-036;Кабель HDMI 2.1 3m;Аксесуари;Роздріб;20;540;0;Виконано;true;;
+ORD-1037;2026-07-26;SKU-037;Точка доступу WiFi 6;Мережі;B2B;6;5300;7;Виконано;true;;
+ORD-1038;2026-08-06;SKU-038;Шредер офісний CrossCut;Офіс;B2B;2;6100;0;Виконано;true;;
+ORD-1039;2026-08-18;SKU-039;Петличний мікрофон Duo;Відео;Онлайн;5;3600;5;У дорозі;true;;
+ORD-1040;2026-08-29;SKU-040;Сетевий фільтр Smart 6;Живлення;Роздріб;11;1250;0;Виконано;true;;
+ORD-1041;2026-09-07;SKU-041;Ноутбук WorkMate 15;Ноутбуки;B2B;4;29800;10;Виконано;true;;
+ORD-1042;2026-09-16;SKU-042;NAS Сховище 2-Bay;Накопичувачі;B2B;2;13900;5;Виконано;true;;
+ORD-1043;2026-09-25;SKU-043;Підставка під ноутбук;Меблі;Роздріб;9;1350;0;Виконано;true;;
+ORD-1044;2026-10-04;SKU-044;Кільцева лампа Studio 18;Відео;Онлайн;4;2900;5;Виконано;true;;
+ORD-1045;2026-10-15;SKU-045;Кардридер SD UHS-II;Аксесуари;Онлайн;10;980;0;Виконано;true;;
+ORD-1046;2026-10-26;SKU-001;Ноутбук AirBook 14;Ноутбуки;Роздріб;1;34000;0;В обробці;false;;
+ORD-1047;2026-11-05;SKU-006;SSD NVMe 1TB;Накопичувачі;Онлайн;5;3900;0;Виконано;true;;
+ORD-1048;2026-11-12;SKU-991;Тест-позиція Alpha;Різне;Онлайн;2;4500;0;В обробці;false;;
+ORD-1049;2026-11-19;SKU-992;Спецзамовлення Beta;Різне;B2B;1;12000;0;У дорозі;true;;
+ORD-1050;2026-11-24;SKU-993;Промо-комплект Gamma;Різне;Роздріб;3;2100;10;Скасовано;false;;
+[/DATASET]
+
+[DATASET id="ds_catalog"]
+# Name: Довідник товарів
+# Columns: sku:text;supplier:text;brand:text;warehouse:text;unit_cost:number;stock_qty:number;warranty_months:number;active:boolean
+# Column-Ids: sku;supplier;brand;warehouse;unit_cost;stock_qty;warranty_months;active
+SKU-001;TechImport UA;AirBook;Київ-Центр;24500;18;24;true
+SKU-002;DisplayHub;VisionTech;Київ-Центр;8200;25;36;true
+SKU-003;KeyCraft;MechLab;Львів-Захід;2100;42;24;true
+SKU-004;KeyCraft;MechLab;Львів-Захід;1150;65;24;true
+SKU-005;SoundWave;AudioCore;Київ-Центр;4300;14;24;true
+SKU-006;SiliconTrade;FlashMax;Дніпро-Схід;2650;80;60;true
+SKU-007;OpticPro;StreamCam;Львів-Захід;2700;22;12;true
+SKU-008;CablePlus;PortLink;Київ-Центр;1800;35;12;true
+SKU-009;SoundWave;AudioCore;Одеса-Південь;3400;19;24;true
+SKU-010;TechImport UA;DevPro;Київ-Центр;41000;9;36;true
+SKU-011;DisplayHub;VisionTech;Дніпро-Схід;16200;11;36;true
+SKU-012;NetLine;MeshWave;Київ-Центр;5200;27;24;true
+SKU-013;ErgoSpace;ComfortWork;Львів-Захід;9500;16;60;true
+SKU-014;ErgoSpace;ComfortWork;Київ-Центр;13800;8;60;true
+SKU-015;CablePlus;LumenBar;Одеса-Південь;980;54;12;true
+SKU-016;KeyCraft;DrawPad;Київ-Центр;3100;21;24;true
+SKU-017;SiliconTrade;VaultDrive;Дніпро-Схід;3200;33;36;true
+SKU-018;VoltGuard;PowerSafe;Київ-Центр;6100;15;24;true
+SKU-019;CablePlus;PortLink;Львів-Захід;4400;12;24;true
+SKU-020;VoltGuard;GaNCharge;Одеса-Південь;1150;90;24;true
+SKU-021;TechImport UA;UltraSlim;Київ-Центр;31000;7;24;true
+SKU-022;DisplayHub;VisionTech;Львів-Захід;4500;40;36;true
+SKU-023;SoundWave;AudioCore;Дніпро-Схід;3900;17;24;true
+SKU-024;KeyCraft;MechLab;Київ-Центр;1750;38;24;true
+SKU-025;ErgoSpace;ComfortWork;Одеса-Південь;1900;29;36;true
+SKU-026;NetLine;MeshWave;Дніпро-Схід;3300;20;36;true
+SKU-027;OpticPro;StreamCam;Київ-Центр;11800;6;24;true
+SKU-028;CablePlus;SoftDesk;Львів-Захід;390;110;12;true
+SKU-029;SiliconTrade;FlashMax;Київ-Центр;4600;24;60;true
+SKU-030;OfficeGear;DocScan;Дніпро-Схід;7900;10;24;true
+SKU-031;OfficeGear;LaserJetUA;Київ-Центр;5800;13;24;true
+SKU-032;VoltGuard;GaNCharge;Львів-Захід;1750;46;18;true
+SKU-033;SoundWave;VoiceLine;Київ-Центр;880;70;12;true
+SKU-034;KeyCraft;DrawPad;Одеса-Південь;2800;16;24;true
+SKU-035;DisplayHub;CreatorPro;Київ-Центр;21500;5;36;true
+SKU-036;CablePlus;PortLink;Дніпро-Схід;280;150;12;true
+SKU-037;NetLine;MeshWave;Львів-Захід;3600;28;36;true
+SKU-038;OfficeGear;DocScan;Київ-Центр;4100;11;24;true
+SKU-039;OpticPro;StreamCam;Одеса-Південь;2300;26;12;true
+SKU-040;VoltGuard;PowerSafe;Дніпро-Схід;790;64;24;true
+SKU-041;TechImport UA;WorkMate;Київ-Центр;21900;12;24;true
+SKU-042;SiliconTrade;VaultDrive;Львів-Захід;9700;9;36;true
+SKU-043;ErgoSpace;ComfortWork;Дніпро-Схід;780;48;24;true
+SKU-044;OpticPro;LumenBar;Київ-Центр;1850;31;12;true
+SKU-045;CablePlus;FlashMax;Одеса-Південь;560;75;24;true
+SKU-046;NetLine;MeshWave;Київ-Центр;6900;14;36;false
+SKU-047;ErgoSpace;ComfortWork;Львів-Захід;5400;10;24;false
+SKU-048;VoltGuard;PowerSafe;Дніпро-Схід;12900;4;36;true
+SKU-049;SiliconTrade;FlashMax;Одеса-Південь;14200;6;60;true
+SKU-050;DisplayHub;CreatorPro;Київ-Центр;18900;3;36;true
+[/DATASET]
+
+[JOIN id="j_sales_left"]
+# Join-JSON: {"id":"j_sales_left","name":"Продажі + Довідник (LEFT)","leftDatasetId":"ds_orders","rightDatasetId":"ds_catalog","leftKeyColumnId":"sku","rightKeyColumnId":"sku","joinType":"left"}
+[/JOIN]
+
+[JOIN id="j_sales_inner"]
+# Join-JSON: {"id":"j_sales_inner","name":"Лише збіги (INNER)","leftDatasetId":"ds_orders","rightDatasetId":"ds_catalog","leftKeyColumnId":"sku","rightKeyColumnId":"sku","joinType":"inner"}
+[/JOIN]
+
+[JOIN id="j_unsold_right_anti"]
+# Join-JSON: {"id":"j_unsold_right_anti","name":"Непродані залишки (RIGHT-ANTI)","leftDatasetId":"ds_orders","rightDatasetId":"ds_catalog","leftKeyColumnId":"sku","rightKeyColumnId":"sku","joinType":"right-anti"}
+[/JOIN]
+
+[JOIN id="j_unlisted_left_anti"]
+# Join-JSON: {"id":"j_unlisted_left_anti","name":"Поза довідником (LEFT-ANTI)","leftDatasetId":"ds_orders","rightDatasetId":"ds_catalog","leftKeyColumnId":"sku","rightKeyColumnId":"sku","joinType":"left-anti"}
+[/JOIN]
+
+[FILTER id="flt_2026"]
+# Filter-JSON: {"id":"flt_2026","name":"Замовлення за 2026 рік","datasetId":"ds_orders","rules":[{"id":"r_2026","columnId":"date","operator":"gte","value":"2026-01-01"}]}
+[/FILTER]
+
+[FILTER id="flt_done"]
+# Filter-JSON: {"id":"flt_done","name":"Тільки виконані","datasetId":"ds_orders","rules":[{"id":"r_done","columnId":"status","operator":"equals","value":"Виконано"}]}
+[/FILTER]
+
+[TEMPLATE id="tpl_exec_compact"]
+# Template-JSON: {"id":"tpl_exec_compact","name":"Компактний KPI-огляд","description":"Швидкий огляд ключових показників","createdAt":"2026-11-27T18:00:00.000Z","pages":[{"id":"tpl_p1","name":"Швидкий зріз","viewport":{"x":0,"y":0,"zoom":1},"elements":[{"id":"tpl_k1","type":"kpi","position":{"x":40,"y":40},"size":{"width":260,"height":150},"config":{"title":"Виторг (формула)","valueFieldId":"revenue","aggregation":"sum","showSparkline":true,"sparklineOrderFieldId":"date"}}]}]}
+[/TEMPLATE]
+
+[CANVAS id="p_overview"]
+# Name: Огляд і KPI
+# Viewport: x=0;y=0;zoom=1
+[ITEM id="el_note_guide" type="note"]
+# Position: x=40;y=40
+# Size: width=300;height=170
+# Config-JSON: {"title":"Демо-проєкт (50 + 50 SKU)","content":"Містить 50 замовлень, формули revenue/margin, 50 SKU у довіднику, 4 варіанти Join (LEFT/INNER/RIGHT-ANTI/LEFT-ANTI), фільтри, Pivot і Kanban.\n\nСпробуйте натиснути Shift+G для Графу зв’язків або змінити дані в Source Data праворуч."}
+# Links-JSON: [{"targetPageId":"p_joins","label":"Перейти до аналізу Join"}]
+[/ITEM]
+[ITEM id="el_kpi_rev" type="kpi"]
+# Position: x=360;y=40
+# Size: width=250;height=170
+# Config-JSON: {"title":"Загальний виторг (fx)","valueFieldId":"revenue","aggregation":"sum","showSparkline":true,"sparklineOrderFieldId":"date"}
+[/ITEM]
+[ITEM id="el_kpi_margin" type="kpi"]
+# Position: x=630;y=40
+# Size: width=240;height=170
+# Config-JSON: {"title":"Розрахункова маржа (25%)","valueFieldId":"margin","aggregation":"sum","showSparkline":true,"sparklineOrderFieldId":"date"}
+[/ITEM]
+[ITEM id="el_kpi_qty" type="kpi"]
+# Position: x=890;y=40
+# Size: width=220;height=170
+# Config-JSON: {"title":"Одиниць продано","valueFieldId":"quantity","aggregation":"sum"}
+[/ITEM]
+[ITEM id="el_line_trend" type="line-chart"]
+# Position: x=40;y=230
+# Size: width=530;height=310
+# Config-JSON: {"title":"Динаміка виторгу за датами","xFieldId":"date","yFieldId":"revenue","aggregation":"sum","showDataLabels":false,"showLegend":true,"legendPosition":"top-right","showAvgLine":true,"accentColor":"#7c5cff"}
+[/ITEM]
+[ITEM id="el_bar_cat" type="bar-chart"]
+# Position: x=590;y=230
+# Size: width=520;height=310
+# Config-JSON: {"title":"Виторг за категоріями (топ)","xFieldId":"category","yFieldId":"revenue","aggregation":"sum","sortBy":"value-desc","showDataLabels":true,"dataLabelPosition":"top","showLegend":true,"legendPosition":"bottom","accentColor":"#38bdf8"}
+[/ITEM]
+[ITEM id="el_pie_channel" type="pie-chart"]
+# Position: x=40;y=560
+# Size: width=430;height=300
+# Config-JSON: {"title":"Канали продажів (Donut)","categoryFieldId":"channel","valueFieldId":"revenue","aggregation":"sum","isDonut":true,"showDataLabels":true,"dataLabelPosition":"outside","showLegend":true,"legendPosition":"right"}
+[/ITEM]
+[/CANVAS]
+
+[CANVAS id="p_analytics"]
+# Name: Графіки та Pivot
+# Viewport: x=0;y=0;zoom=1
+[ITEM id="el_stacked_cat_status" type="stacked-bar"]
+# Position: x=40;y=40
+# Size: width=540;height=320
+# Config-JSON: {"title":"Категорії × Статуси (числа праворуч)","xFieldId":"category","seriesFieldId":"status","yFieldId":"revenue","aggregation":"sum","sortBy":"value-desc","showDataLabels":true,"dataLabelPosition":"right","showLegend":true,"legendPosition":"top-left"}
+[/ITEM]
+[ITEM id="el_hist_rev" type="histogram"]
+# Position: x=600;y=40
+# Size: width=480;height=320
+# Config-JSON: {"title":"Розподіл чеків (Гістограма)","valueFieldId":"revenue","binCount":8,"showDataLabels":true,"dataLabelPosition":"top","showLegend":false,"accentColor":"#34d399"}
+[/ITEM]
+[ITEM id="el_scatter_qp" type="scatter"]
+# Position: x=40;y=380
+# Size: width=500;height=310
+# Config-JSON: {"title":"Кількість vs Ціна за од.","xFieldId":"quantity","yFieldId":"unit_price","labelFieldId":"product","showDataLabels":false,"accentColor":"#fbbf24"}
+[/ITEM]
+[ITEM id="el_pivot_cat_ch" type="pivot-table"]
+# Position: x=560;y=380
+# Size: width=520;height=310
+# Config-JSON: {"title":"Зведена таблиця: Категорія × Канал","rowFieldId":"category","colFieldId":"channel","valueFieldId":"revenue","aggregation":"sum"}
+[/ITEM]
+[/CANVAS]
+
+[CANVAS id="p_ops"]
+# Name: Kanban і Таблиця
+# Viewport: x=0;y=0;zoom=1
+[ITEM id="el_kanban_status" type="kanban"]
+# Position: x=40;y=40
+# Size: width=620;height=360
+# Config-JSON: {"title":"Дошка замовлень за статусом","groupByFieldId":"status","titleFieldId":"product","detailFieldIds":["category","channel","revenue"]}
+# Links-JSON: [{"targetPageId":"p_overview","targetElementId":"el_kpi_rev","label":"Повернутися до KPI"}]
+[/ITEM]
+[ITEM id="el_table_done" type="table-view"]
+# Position: x=40;y=420
+# Size: width=980;height=300
+# Filter-Ids-JSON: ["flt_done"]
+# Config-JSON: {"title":"Виконані замовлення (фільтр flt_done)","columnIds":["order_id","date","sku","product","category","quantity","revenue","margin"],"maxRows":50}
+[/ITEM]
+[/CANVAS]
+
+[CANVAS id="p_joins"]
+# Name: Аналіз Join (50 SKU)
+# Viewport: x=0;y=0;zoom=1
+[ITEM id="el_note_join" type="note"]
+# Position: x=40;y=40
+# Size: width=340;height=180
+# Config-JSON: {"title":"Демонстрація 4 типів Join","content":"• LEFT JOIN: зберігає всі 50 замовлень, навіть SKU-991..993 без запису в довіднику.\n• INNER JOIN: 47 зіставлених замовлень.\n• RIGHT-ANTI: знаходить SKU-046..050 зі складу без жодного продажу.\n• LEFT-ANTI: знаходить артикули без картки в довіднику."}
+[/ITEM]
+[ITEM id="el_bar_supplier" type="bar-chart"]
+# Position: x=400;y=40
+# Size: width=560;height=280
+# Dataset-Id: join:j_sales_left
+# Config-JSON: {"title":"Виторг за постачальниками (LEFT JOIN)","xFieldId":"j_sales_left__supplier","yFieldId":"revenue","aggregation":"sum","sortBy":"value-desc","showDataLabels":true,"dataLabelPosition":"top","showLegend":true,"legendPosition":"top-right","accentColor":"#f472b6"}
+[/ITEM]
+[ITEM id="el_table_unsold" type="table-view"]
+# Position: x=40;y=340
+# Size: width=460;height=290
+# Dataset-Id: join:j_unsold_right_anti
+# Config-JSON: {"title":"Товари без продажів (RIGHT-ANTI JOIN)","columnIds":["j_unsold_right_anti__sku","j_unsold_right_anti__supplier","j_unsold_right_anti__brand","j_unsold_right_anti__warehouse","j_unsold_right_anti__stock_qty"],"maxRows":50}
+[/ITEM]
+[ITEM id="el_table_unlisted" type="table-view"]
+# Position: x=520;y=340
+# Size: width=440;height=290
+# Dataset-Id: join:j_unlisted_left_anti
+# Config-JSON: {"title":"Продажі поза довідником (LEFT-ANTI JOIN)","columnIds":["order_id","sku","product","channel","revenue","status"],"maxRows":50}
+[/ITEM]
+[/CANVAS]

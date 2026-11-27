@@ -9,7 +9,11 @@ import {
   TooltipComponent,
 } from 'echarts/components';
 import { SVGRenderer } from 'echarts/renderers';
-import type { ChartDisplayOptions } from '../../domain/models';
+import type {
+  ChartDataLabelPosition,
+  ChartDisplayOptions,
+  ChartLegendPosition,
+} from '../../domain/models';
 
 echarts.use([
   LineChart,
@@ -82,6 +86,105 @@ function formatCompactValue(val: unknown): string {
     return `${(val / 1_000).toFixed(1)}k`;
   }
   return Number.isInteger(val) ? String(val) : val.toFixed(1);
+}
+
+const DATA_LABEL_HALO = {
+  textBorderColor: 'rgba(12, 13, 16, 0.85)',
+  textBorderWidth: 2,
+};
+
+function resolveCartesianLabelPos(
+  pos: ChartDataLabelPosition | undefined,
+  fallback: ChartDataLabelPosition,
+): 'top' | 'bottom' | 'left' | 'right' | 'inside' | 'insideTop' | 'insideBottom' {
+  const effective = pos ?? fallback;
+  if (effective === 'outside') {
+    return 'top';
+  }
+  return effective;
+}
+
+function buildLegendAndOffsets(
+  showLegend: boolean,
+  position: ChartLegendPosition,
+  axisLabelFontSize: number,
+  showDataLabels: boolean,
+  labelPos: ChartDataLabelPosition,
+  bottomRotateOffset: number,
+) {
+  const isVertical = position === 'left' || position === 'right';
+  const isBottom =
+    position === 'bottom' || position === 'bottom-left' || position === 'bottom-right';
+  const isTop = position === 'top' || position === 'top-left' || position === 'top-right';
+
+  const legendBase: Record<string, unknown> = {
+    show: showLegend,
+    type: 'scroll',
+    orient: isVertical ? 'vertical' : 'horizontal',
+    textStyle: isVertical
+      ? { color: '#a1a7b8', fontSize: axisLabelFontSize, width: 84, overflow: 'truncate' }
+      : { color: '#a1a7b8', fontSize: axisLabelFontSize },
+  };
+
+  if (position === 'top') {
+    legendBase.top = 2;
+    legendBase.left = 'center';
+  } else if (position === 'bottom') {
+    legendBase.bottom = 2;
+    legendBase.left = 'center';
+  } else if (position === 'left') {
+    legendBase.left = 2;
+    legendBase.top = 'middle';
+  } else if (position === 'right') {
+    legendBase.right = 2;
+    legendBase.top = 'middle';
+  } else if (position === 'top-left') {
+    legendBase.top = 2;
+    legendBase.left = 6;
+  } else if (position === 'top-right') {
+    legendBase.top = 2;
+    legendBase.right = 6;
+  } else if (position === 'bottom-left') {
+    legendBase.bottom = 2;
+    legendBase.left = 6;
+  } else if (position === 'bottom-right') {
+    legendBase.bottom = 2;
+    legendBase.right = 6;
+  } else if (position === 'center') {
+    legendBase.top = 'middle';
+    legendBase.left = 'center';
+    legendBase.backgroundColor = 'rgba(16, 18, 24, 0.86)';
+    legendBase.borderColor = 'rgba(255, 255, 255, 0.12)';
+    legendBase.borderWidth = 1;
+    legendBase.borderRadius = 6;
+    legendBase.padding = [4, 8];
+  }
+
+  const labelTopExtra = showDataLabels && (labelPos === 'top' || labelPos === 'outside') ? 10 : 0;
+  const labelSideLeft = showDataLabels && labelPos === 'left' ? 28 : 14;
+  const labelSideRight = showDataLabels && labelPos === 'right' ? 32 : 14;
+
+  const grid = {
+    top: showLegend && isTop ? 28 + labelTopExtra : 14 + labelTopExtra,
+    right: showLegend && position === 'right' ? 114 : labelSideRight,
+    bottom: bottomRotateOffset + (showLegend && isBottom ? 24 : 0),
+    left: showLegend && position === 'left' ? 114 : labelSideLeft,
+    containLabel: true,
+  };
+
+  const pieCenter: [string, string] = !showLegend
+    ? ['50%', '50%']
+    : isTop
+      ? ['50%', '56%']
+      : isBottom
+        ? ['50%', '44%']
+        : position === 'left'
+          ? ['62%', '50%']
+          : position === 'right'
+            ? ['38%', '50%']
+            : ['50%', '50%'];
+
+  return { legend: legendBase, grid, pieCenter };
 }
 
 export const EChartBox = forwardRef<EChartBoxHandle, EChartBoxProps>(function EChartBox(
@@ -213,6 +316,20 @@ export const EChartBox = forwardRef<EChartBoxHandle, EChartBoxProps>(function EC
 
     if (payload.kind === 'pie') {
       const showLegend = displayOptions?.showLegend !== false;
+      const legendPos = displayOptions?.legendPosition ?? 'bottom';
+      const rawLabelPos = displayOptions?.dataLabelPosition;
+      const pieLabelPos: 'inside' | 'outside' =
+        rawLabelPos === 'inside' || rawLabelPos === 'insideTop' || rawLabelPos === 'insideBottom'
+          ? 'inside'
+          : 'outside';
+      const layout = buildLegendAndOffsets(
+        showLegend,
+        legendPos,
+        axisLabelFontSize,
+        showDataLabels,
+        pieLabelPos,
+        0,
+      );
       chart.setOption(
         {
           animationDuration: 220,
@@ -223,30 +340,27 @@ export const EChartBox = forwardRef<EChartBoxHandle, EChartBoxProps>(function EC
             trigger: 'item',
             formatter: '{b}: {c} ({d}%)',
           },
-          legend: {
-            show: showLegend,
-            bottom: 0,
-            textStyle: { color: '#a1a7b8', fontSize: axisLabelFontSize },
-            type: 'scroll',
-          },
+          legend: layout.legend,
           series: [
             {
               name: payload.seriesName,
               type: 'pie',
               radius: payload.isDonut
                 ? showLegend
-                  ? ['44%', '72%']
+                  ? ['40%', '68%']
                   : ['48%', '80%']
                 : showLegend
-                  ? '70%'
+                  ? '68%'
                   : '78%',
-              center: showLegend ? ['50%', '44%'] : ['50%', '50%'],
+              center: layout.pieCenter,
               data: payload.items,
               label: showDataLabels
                 ? {
                     show: true,
+                    position: pieLabelPos,
                     color: '#eceef4',
                     fontSize: dataLabelFontSize,
+                    ...DATA_LABEL_HALO,
                     formatter: (p: { name?: string; value?: unknown; percent?: number }) =>
                       Number(p.value) === 0 ? '' : `${p.name ?? ''}: ${p.percent ?? 0}%`,
                   }
@@ -265,6 +379,8 @@ export const EChartBox = forwardRef<EChartBoxHandle, EChartBoxProps>(function EC
 
     if (payload.kind === 'stacked-bar') {
       const showLegend = displayOptions?.showLegend !== false;
+      const legendPos = displayOptions?.legendPosition ?? 'top';
+      const labelPos = resolveCartesianLabelPos(displayOptions?.dataLabelPosition, 'inside');
       const autoRotate = payload.xLabels.length > 6 ? 35 : 0;
       const rotate =
         displayOptions?.rotateLabels === false
@@ -274,6 +390,14 @@ export const EChartBox = forwardRef<EChartBoxHandle, EChartBoxProps>(function EC
               ? 45
               : 30
             : autoRotate;
+      const layout = buildLegendAndOffsets(
+        showLegend,
+        legendPos,
+        axisLabelFontSize,
+        showDataLabels,
+        labelPos,
+        rotate > 0 ? 52 : 34,
+      );
 
       chart.setOption(
         {
@@ -281,19 +405,8 @@ export const EChartBox = forwardRef<EChartBoxHandle, EChartBoxProps>(function EC
           backgroundColor: 'transparent',
           color: palette,
           tooltip: { ...baseTooltip, trigger: 'axis', axisPointer: { type: 'shadow' } },
-          legend: {
-            show: showLegend,
-            top: 0,
-            type: 'scroll',
-            textStyle: { color: '#a1a7b8', fontSize: axisLabelFontSize },
-          },
-          grid: {
-            top: showLegend ? 28 : 14,
-            right: 14,
-            bottom: rotate > 0 ? 52 : 34,
-            left: 14,
-            containLabel: true,
-          },
+          legend: layout.legend,
+          grid: layout.grid,
           xAxis: {
             type: 'category',
             data: payload.xLabels,
@@ -320,9 +433,10 @@ export const EChartBox = forwardRef<EChartBoxHandle, EChartBoxProps>(function EC
             label: showDataLabels
               ? {
                   show: true,
-                  position: 'inside',
+                  position: labelPos,
                   color: '#eceef4',
                   fontSize: dataLabelFontSize,
+                  ...DATA_LABEL_HALO,
                   formatter: (p: { value?: unknown }) => {
                     const num = Number(p.value);
                     return Number.isFinite(num) && num !== 0 ? formatCompactValue(num) : '';
@@ -337,6 +451,7 @@ export const EChartBox = forwardRef<EChartBoxHandle, EChartBoxProps>(function EC
     }
 
     if (payload.kind === 'scatter') {
+      const scatterLabelPos = resolveCartesianLabelPos(displayOptions?.dataLabelPosition, 'top');
       chart.setOption(
         {
           animationDuration: 220,
@@ -352,7 +467,13 @@ export const EChartBox = forwardRef<EChartBoxHandle, EChartBoxProps>(function EC
               return `${p.data.name}<br/>${payload.xName}: ${p.data.value[0]}<br/>${payload.yName}: ${p.data.value[1]}`;
             },
           },
-          grid: { top: 16, right: 16, bottom: 32, left: 14, containLabel: true },
+          grid: {
+            top: showDataLabels && scatterLabelPos === 'top' ? 24 : 16,
+            right: showDataLabels && scatterLabelPos === 'right' ? 32 : 16,
+            bottom: 32,
+            left: showDataLabels && scatterLabelPos === 'left' ? 32 : 14,
+            containLabel: true,
+          },
           xAxis: {
             type: 'value',
             scale: true,
@@ -393,9 +514,10 @@ export const EChartBox = forwardRef<EChartBoxHandle, EChartBoxProps>(function EC
               label: showDataLabels
                 ? {
                     show: true,
-                    position: 'top',
+                    position: scatterLabelPos,
                     color: '#c8cddb',
                     fontSize: dataLabelFontSize,
+                    ...DATA_LABEL_HALO,
                     formatter: (p: { name?: string }) => p.name ?? '',
                   }
                 : { show: false },
@@ -413,6 +535,8 @@ export const EChartBox = forwardRef<EChartBoxHandle, EChartBoxProps>(function EC
 
     // basic: line-chart, bar-chart, histogram
     const showLegend = Boolean(displayOptions?.showLegend);
+    const legendPos = displayOptions?.legendPosition ?? 'top';
+    const labelPos = resolveCartesianLabelPos(displayOptions?.dataLabelPosition, 'top');
     const isLine = payload.chartType === 'line-chart';
     const isHist = payload.chartType === 'histogram';
     const labelCount = payload.labels.length;
@@ -425,24 +549,21 @@ export const EChartBox = forwardRef<EChartBoxHandle, EChartBoxProps>(function EC
             ? 45
             : 30
           : autoRotate;
+    const layout = buildLegendAndOffsets(
+      showLegend,
+      legendPos,
+      axisLabelFontSize,
+      showDataLabels,
+      labelPos,
+      labelRotate > 0 ? 54 : 34,
+    );
 
     chart.setOption(
       {
         animationDuration: 220,
         backgroundColor: 'transparent',
-        legend: {
-          show: showLegend,
-          top: 0,
-          type: 'scroll',
-          textStyle: { color: '#a1a7b8', fontSize: axisLabelFontSize },
-        },
-        grid: {
-          top: showLegend ? (showDataLabels ? 36 : 28) : (showDataLabels ? 24 : 14),
-          right: 14,
-          bottom: labelRotate > 0 ? 54 : 34,
-          left: 14,
-          containLabel: true,
-        },
+        legend: layout.legend,
+        grid: layout.grid,
         tooltip: {
           ...baseTooltip,
           trigger: 'axis',
@@ -479,9 +600,10 @@ export const EChartBox = forwardRef<EChartBoxHandle, EChartBoxProps>(function EC
             label: showDataLabels
               ? {
                   show: true,
-                  position: 'top',
+                  position: labelPos,
                   color: '#eceef4',
                   fontSize: dataLabelFontSize,
+                  ...DATA_LABEL_HALO,
                   formatter: (p: { value?: unknown }) => {
                     const num = Number(p.value);
                     if (isHist && Number.isFinite(num) && num === 0) {

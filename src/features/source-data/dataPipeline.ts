@@ -28,7 +28,8 @@ export function getJoinedColumnId(joinId: string, rightColumnId: string): string
 }
 
 /**
- * Materializes a Left or Inner Join between two evaluated datasets.
+ * Materializes a relational Join (left, inner, right, full outer, left-anti, right-anti)
+ * between two evaluated datasets.
  * Right-side columns receive deterministic IDs (`<joinId>__<colId>`) and qualified names.
  */
 export function materializeJoinedDataset(
@@ -39,20 +40,20 @@ export function materializeJoinedDataset(
   const left = evaluateDatasetFormulas(leftRaw);
   const right = evaluateDatasetFormulas(rightRaw);
 
-  const rightLookup = new Map<string, Row[]>();
-  for (const rRow of right.rows) {
+  const rightLookup = new Map<string, Array<{ row: Row; index: number }>>();
+  right.rows.forEach((rRow, index) => {
     const rawKey = rRow.values[join.rightKeyColumnId];
     if (isEmptyCellValue(rawKey)) {
-      continue;
+      return;
     }
     const key = String(rawKey).trim();
     const bucket = rightLookup.get(key);
     if (bucket) {
-      bucket.push(rRow);
+      bucket.push({ row: rRow, index });
     } else {
-      rightLookup.set(key, [rRow]);
+      rightLookup.set(key, [{ row: rRow, index }]);
     }
-  }
+  });
 
   const rightColumns: Column[] = right.columns.map((col) => ({
     ...col,
@@ -63,6 +64,21 @@ export function materializeJoinedDataset(
 
   const mergedColumns: Column[] = [...left.columns, ...rightColumns];
   const mergedRows: Row[] = [];
+  const matchedRightIndices = new Set<number>();
+
+  const emitJoinedPair = (lRow: Row | null, rRow: Row | null, suffix: string) => {
+    const values: Record<string, CellValue> = {};
+    for (const lCol of left.columns) {
+      values[lCol.id] = lRow ? (lRow.values[lCol.id] ?? null) : null;
+    }
+    for (const rCol of right.columns) {
+      values[getJoinedColumnId(join.id, rCol.id)] = rRow ? (rRow.values[rCol.id] ?? null) : null;
+    }
+    mergedRows.push({
+      id: `${lRow?.id ?? 'null'}__${rRow?.id ?? 'null'}_${suffix}`,
+      values,
+    });
+  };
 
   for (const lRow of left.rows) {
     const rawKey = lRow.values[join.leftKeyColumnId];
@@ -70,28 +86,33 @@ export function materializeJoinedDataset(
     const matches = key ? (rightLookup.get(key) ?? []) : [];
 
     if (matches.length === 0) {
-      if (join.joinType === 'left') {
-        const values: Record<string, CellValue> = { ...lRow.values };
-        for (const rCol of right.columns) {
-          values[getJoinedColumnId(join.id, rCol.id)] = null;
-        }
-        mergedRows.push({
-          id: `${lRow.id}__null`,
-          values,
-        });
+      if (
+        join.joinType === 'left' ||
+        join.joinType === 'full' ||
+        join.joinType === 'left-anti'
+      ) {
+        emitJoinedPair(lRow, null, 'unmatched_l');
       }
       continue;
     }
 
-    matches.forEach((rRow, idx) => {
-      const values: Record<string, CellValue> = { ...lRow.values };
-      for (const rCol of right.columns) {
-        values[getJoinedColumnId(join.id, rCol.id)] = rRow.values[rCol.id] ?? null;
+    matches.forEach(({ row: rRow, index: rIdx }, idx) => {
+      matchedRightIndices.add(rIdx);
+      if (join.joinType !== 'left-anti' && join.joinType !== 'right-anti') {
+        emitJoinedPair(lRow, rRow, String(idx));
       }
-      mergedRows.push({
-        id: `${lRow.id}__${rRow.id}_${idx}`,
-        values,
-      });
+    });
+  }
+
+  if (
+    join.joinType === 'right' ||
+    join.joinType === 'full' ||
+    join.joinType === 'right-anti'
+  ) {
+    right.rows.forEach((rRow, rIdx) => {
+      if (!matchedRightIndices.has(rIdx)) {
+        emitJoinedPair(null, rRow, `unmatched_r_${rIdx}`);
+      }
     });
   }
 
