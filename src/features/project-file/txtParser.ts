@@ -481,7 +481,17 @@ function extractChartDisplayOptions(rawConfig: Record<string, unknown>): ChartDi
   if (typeof rawConfig.accentColor === 'string' && rawConfig.accentColor.trim() !== '') {
     opts.accentColor = rawConfig.accentColor.trim();
   }
+  if (typeof rawConfig.textScale === 'number' && Number.isFinite(rawConfig.textScale)) {
+    opts.textScale = Math.max(50, Math.min(200, Math.round(rawConfig.textScale)));
+  }
   return opts;
+}
+
+function parseOptionalTextScale(rawConfig: Record<string, unknown>): { textScale?: number } {
+  if (typeof rawConfig.textScale === 'number' && Number.isFinite(rawConfig.textScale)) {
+    return { textScale: Math.max(50, Math.min(200, Math.round(rawConfig.textScale))) };
+  }
+  return {};
 }
 
 function normalizeElementConfig(
@@ -490,11 +500,21 @@ function normalizeElementConfig(
   columns: Column[],
 ): CanvasElementConfig {
   const title = typeof rawConfig.title === 'string' ? rawConfig.title : '';
+  const textScalePatch = parseOptionalTextScale(rawConfig);
 
   if (elementType === 'note') {
+    const noteFontSize =
+      typeof rawConfig.fontSize === 'number' && Number.isFinite(rawConfig.fontSize)
+        ? Math.max(10, Math.min(32, Math.floor(rawConfig.fontSize)))
+        : undefined;
     return {
       title: title || 'Нотатка',
       content: typeof rawConfig.content === 'string' ? rawConfig.content : '',
+      ...(noteFontSize !== undefined ? { fontSize: noteFontSize } : {}),
+      ...(typeof rawConfig.bold === 'boolean' ? { bold: rawConfig.bold } : {}),
+      ...(typeof rawConfig.italic === 'boolean' ? { italic: rawConfig.italic } : {}),
+      ...(typeof rawConfig.underline === 'boolean' ? { underline: rawConfig.underline } : {}),
+      ...textScalePatch,
     };
   }
 
@@ -511,6 +531,7 @@ function normalizeElementConfig(
       ...(rawSpark !== undefined
         ? { sparklineOrderFieldId: resolveFieldReference(rawSpark, columns) }
         : {}),
+      ...textScalePatch,
     };
   }
 
@@ -535,6 +556,7 @@ function normalizeElementConfig(
       detailFieldIds: rawDetails
         .map((item) => resolveFieldReference(item, columns))
         .filter((id): id is string => id !== null),
+      ...textScalePatch,
     };
   }
 
@@ -595,6 +617,7 @@ function normalizeElementConfig(
       valueFieldId: resolveFieldReference(rawConfig.valueFieldId, columns),
       aggregation: parseAgg(rawConfig.aggregation, 'sum'),
       ...(fontSize !== undefined ? { fontSize } : {}),
+      ...textScalePatch,
     };
   }
 
@@ -622,6 +645,7 @@ function normalizeElementConfig(
     columnIds,
     ...(maxRows !== undefined ? { maxRows } : {}),
     ...(fontSize !== undefined ? { fontSize } : {}),
+    ...textScalePatch,
   };
 }
 

@@ -42,7 +42,7 @@
   align-items: center;
   gap: 6px;
   min-width: 0;
-  font-size: var(--text-xs);
+  font-size: calc(var(--text-xs) * var(--el-text-scale, 1));
   font-weight: 600;
   letter-spacing: -0.005em;
   color: var(--text-primary);
@@ -116,16 +116,44 @@
 }
 
 /* Note */
-.canvas-note-textarea {
+.canvas-note-textarea,
+.canvas-note-view {
   width: 100%;
   height: 100%;
   resize: none;
   border: none;
   background: transparent;
   color: var(--text-primary);
-  font-size: var(--text-sm);
+  font-family: inherit;
+  font-size: calc(var(--note-font-size, 12px) * var(--el-text-scale, 1));
   line-height: 1.5;
   outline: none;
+  padding: 0;
+  margin: 0;
+}
+
+.canvas-note-view {
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  cursor: text;
+}
+
+.canvas-note-placeholder {
+  color: var(--text-muted);
+}
+
+.canvas-note--bold {
+  font-weight: 700;
+}
+
+.canvas-note--italic {
+  font-style: italic;
+}
+
+.canvas-note--underline {
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 /* KPI */
@@ -140,7 +168,7 @@
 }
 
 .canvas-kpi-value {
-  font-size: 28px;
+  font-size: calc(28px * var(--el-text-scale, 1));
   font-weight: 600;
   letter-spacing: -0.03em;
   font-variant-numeric: tabular-nums;
@@ -157,8 +185,12 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
-  font-size: var(--text-xs);
+  font-size: calc(var(--text-xs) * var(--el-text-scale, 1));
   color: var(--text-muted);
+}
+
+.canvas-node .mono-chip {
+  font-size: calc(10px * var(--el-text-scale, 1));
 }
 
 /* Chart */
@@ -168,7 +200,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 6px;
-  font-size: var(--text-xs);
+  font-size: calc(var(--text-xs) * var(--el-text-scale, 1));
   color: var(--text-muted);
 }
 
@@ -191,7 +223,7 @@
 .canvas-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 11px;
+  font-size: calc(var(--table-font-size, 11px) * var(--el-text-scale, 1));
 }
 
 .canvas-table th,
@@ -277,14 +309,14 @@
   gap: 6px;
   padding: 6px 8px;
   border-bottom: 1px solid var(--border-subtle);
-  font-size: 11px;
+  font-size: calc(11px * var(--el-text-scale, 1));
   font-weight: 600;
   color: var(--text-primary);
 }
 
 .kanban-lane-count {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: calc(10px * var(--el-text-scale, 1));
   color: var(--text-muted);
 }
 
@@ -314,7 +346,7 @@
 }
 
 .kanban-card-title {
-  font-size: 11px;
+  font-size: calc(11px * var(--el-text-scale, 1));
   font-weight: 600;
   color: var(--text-primary);
   word-break: break-word;
@@ -324,7 +356,7 @@
   display: flex;
   justify-content: space-between;
   gap: 6px;
-  font-size: 10px;
+  font-size: calc(10px * var(--el-text-scale, 1));
   color: var(--text-secondary);
 }
 

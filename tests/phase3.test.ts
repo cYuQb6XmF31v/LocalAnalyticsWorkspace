@@ -328,12 +328,12 @@ describe('Phase 3 features', () => {
     }
   });
 
-  it('computes exact graph hover dwell timing and preserves table/pivot fontSize', () => {
+  it('computes exact graph hover dwell timing and preserves table/pivot/note fontSize & textScale', () => {
     expect(sensitivityToDwellMs(0)).toBe(Infinity);
-    expect(sensitivityToDwellMs(1)).toBe(2000);
+    expect(sensitivityToDwellMs(1)).toBe(1000);
     expect(sensitivityToDwellMs(100)).toBe(0);
-    expect(sensitivityToDwellMs(50)).toBeGreaterThan(900);
-    expect(sensitivityToDwellMs(50)).toBeLessThan(1100);
+    expect(sensitivityToDwellMs(50)).toBeGreaterThan(450);
+    expect(sensitivityToDwellMs(50)).toBeLessThan(550);
 
     const project = createEmptyProject('Font Test', 'Sheet 1');
     project.primaryDataset = addColumn(project.primaryDataset, {
@@ -347,7 +347,7 @@ describe('Phase 3 features', () => {
         type: 'table-view',
         position: { x: 20, y: 20 },
         size: { width: 400, height: 220 },
-        config: { title: 'Таблиця', columnIds: ['col_a'], maxRows: 20, fontSize: 15 },
+        config: { title: 'Таблиця', columnIds: ['col_a'], maxRows: 20, fontSize: 15, textScale: 120 },
       },
       {
         id: 'piv_1',
@@ -361,6 +361,22 @@ describe('Phase 3 features', () => {
           valueFieldId: 'col_a',
           aggregation: 'count',
           fontSize: 16,
+          textScale: 130,
+        },
+      },
+      {
+        id: 'note_1',
+        type: 'note',
+        position: { x: 20, y: 260 },
+        size: { width: 280, height: 180 },
+        config: {
+          title: 'Нотатка',
+          content: '**Важливо** і __підкреслено__',
+          fontSize: 18,
+          bold: true,
+          italic: true,
+          underline: true,
+          textScale: 115,
         },
       },
     ];
@@ -372,8 +388,16 @@ describe('Phase 3 features', () => {
     if (reparsed.kind === 'project') {
       const tCfg = reparsed.project.canvases[0].elements[0].config;
       const pCfg = reparsed.project.canvases[0].elements[1].config;
+      const nCfg = reparsed.project.canvases[0].elements[2].config;
       expect('fontSize' in tCfg ? tCfg.fontSize : undefined).toBe(15);
+      expect(tCfg.textScale).toBe(120);
       expect('fontSize' in pCfg ? pCfg.fontSize : undefined).toBe(16);
+      expect(pCfg.textScale).toBe(130);
+      expect('fontSize' in nCfg ? nCfg.fontSize : undefined).toBe(18);
+      expect('bold' in nCfg ? nCfg.bold : undefined).toBe(true);
+      expect('italic' in nCfg ? nCfg.italic : undefined).toBe(true);
+      expect('underline' in nCfg ? nCfg.underline : undefined).toBe(true);
+      expect(nCfg.textScale).toBe(115);
     }
   });
 });

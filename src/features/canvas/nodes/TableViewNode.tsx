@@ -35,7 +35,11 @@ export function TableViewNode({ data, selected }: NodeProps<CanvasFlowNode>) {
           <div className="canvas-table-scroll nodrag nopan nowheel">
             <table
               className="canvas-table"
-              style={element.config.fontSize ? { fontSize: `${element.config.fontSize}px` } : undefined}
+              style={
+                element.config.fontSize
+                  ? ({ '--table-font-size': `${element.config.fontSize}px` } as React.CSSProperties)
+                  : undefined
+              }
             >
               <thead>
                 <tr>

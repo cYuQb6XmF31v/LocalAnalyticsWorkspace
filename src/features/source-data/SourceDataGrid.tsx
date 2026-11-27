@@ -6,8 +6,10 @@ import {
   FunctionSquare,
   GitMerge,
   Plus,
+  Search,
   Table2,
   Trash2,
+  X,
 } from 'lucide-react';
 import { useProject } from '../../app/ProjectContext';
 import { CustomSelect } from '../../components/CustomSelect';
@@ -62,11 +64,23 @@ export function SourceDataGrid({ onRequestImportTxt }: SourceDataGridProps) {
   const [pendingDelete, setPendingDelete] = useState<PendingColumnDelete | null>(null);
   const [colWidths, setColWidths] = useState<Record<string, number>>({});
   const colResizeRef = useRef<{ colId: string; startX: number; startWidth: number } | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const newFormulaCheck = newColUseFormula ? validateFormula(newColFormula) : null;
   const editFormulaValidation = editingFormulaColId
     ? validateFormula(formulaDraft)
     : null;
+
+  const filteredRows = useMemo(() => {
+    const indexed = evaluatedDataset.rows.map((row, idx) => ({ row, rowNumber: idx + 1 }));
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return indexed;
+    return indexed.filter(({ row }) =>
+      evaluatedDataset.columns.some((col) =>
+        String(row.values[col.id] ?? '').toLowerCase().includes(q),
+      ),
+    );
+  }, [evaluatedDataset.rows, evaluatedDataset.columns, searchQuery]);
 
   const handleColResizeStart = (colId: string, event: React.PointerEvent<HTMLDivElement>) => {
     event.preventDefault();
@@ -312,6 +326,36 @@ export function SourceDataGrid({ onRequestImportTxt }: SourceDataGridProps) {
           </button>
         </div>
       </div>
+
+      {dataset.columns.length > 0 && (
+        <div className="sd-search-wrap">
+          <Search size={12} className="sd-search-icon" />
+          <input
+            type="text"
+            className="sd-search-input"
+            placeholder="Пошук по всіх колонках…"
+            aria-label="Пошук у таблиці"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+          {searchQuery && (
+            <>
+              <span className="sd-search-count">
+                {filteredRows.length} з {evaluatedDataset.rows.length}
+              </span>
+              <button
+                type="button"
+                className="sd-search-clear"
+                aria-label="Очистити пошук"
+                title="Очистити пошук"
+                onClick={() => setSearchQuery('')}
+              >
+                <X size={11} />
+              </button>
+            </>
+          )}
+        </div>
+      )}
 
       {isAddingCol && (
         <form className="sd-add-col-bar" style={{ flexDirection: 'column', alignItems: 'stretch' }} onSubmit={handleCreateColumn}>
@@ -597,9 +641,9 @@ export function SourceDataGrid({ onRequestImportTxt }: SourceDataGridProps) {
             </thead>
 
             <tbody>
-              {evaluatedDataset.rows.map((row, rowIndex) => (
+              {filteredRows.map(({ row, rowNumber }) => (
                 <tr key={row.id}>
-                  <td className="sd-td-index">{rowIndex + 1}</td>
+                  <td className="sd-td-index">{rowNumber}</td>
                   {evaluatedDataset.columns.map((col) => {
                     const rawValue = row.values[col.id];
                     const stringValue = cellValueToInputString(rawValue);
@@ -634,7 +678,7 @@ export function SourceDataGrid({ onRequestImportTxt }: SourceDataGridProps) {
                           <CustomSelect
                             size="xs"
                             mono
-                            ariaLabel={`${col.name}, рядок ${rowIndex + 1}`}
+                            ariaLabel={`${col.name}, рядок ${rowNumber}`}
                             value={
                               validation.parsed === null ? '' : String(validation.parsed)
                             }
@@ -663,7 +707,7 @@ export function SourceDataGrid({ onRequestImportTxt }: SourceDataGridProps) {
                             } ${col.type === 'number' ? 'sd-cell-input--number' : ''} ${
                               !validation.valid ? 'sd-cell-input--invalid' : ''
                             }`}
-                            aria-label={`${col.name}, рядок ${rowIndex + 1}`}
+                            aria-label={`${col.name}, рядок ${rowNumber}`}
                             aria-invalid={!validation.valid}
                             title={errorTooltip}
                             placeholder={col.type === 'date' ? 'YYYY-MM-DD' : ''}
@@ -689,7 +733,7 @@ export function SourceDataGrid({ onRequestImportTxt }: SourceDataGridProps) {
                       onClick={() =>
                         dispatch({ type: 'DELETE_ROW', datasetId: dataset.id, rowId: row.id })
                       }
-                      aria-label={`${uk.sourceData.deleteRow} ${rowIndex + 1}`}
+                      aria-label={`${uk.sourceData.deleteRow} ${rowNumber}`}
                       title={uk.sourceData.deleteRow}
                     >
                       <Trash2 size={11} />
@@ -699,6 +743,20 @@ export function SourceDataGrid({ onRequestImportTxt }: SourceDataGridProps) {
               ))}
             </tbody>
           </table>
+
+          {dataset.rows.length > 0 && filteredRows.length === 0 && (
+            <div className="sd-empty-rows">
+              <span>За запитом «{searchQuery}» нічого не знайдено</span>
+              <button
+                type="button"
+                className="btn btn--secondary"
+                onClick={() => setSearchQuery('')}
+              >
+                <X size={13} />
+                <span>Скинути пошук</span>
+              </button>
+            </div>
+          )}
 
           {dataset.rows.length === 0 && (
             <div className="sd-empty-rows">

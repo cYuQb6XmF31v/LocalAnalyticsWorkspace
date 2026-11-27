@@ -65,16 +65,46 @@
   flex-shrink: 0;
 }
 
+.shell-project-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex-shrink: 1;
+}
+
+.shell-project-sizer-wrap {
+  display: inline-grid;
+  align-items: center;
+  min-width: 64px;
+  max-width: clamp(160px, 28vw, 380px);
+}
+
+.shell-project-sizer,
 .shell-project-input {
+  grid-area: 1 / 1;
+  font-family: inherit;
   font-size: var(--text-sm);
   font-weight: 500;
+  letter-spacing: inherit;
+  padding: 3px 7px;
+  border: 1px solid transparent;
+  box-sizing: border-box;
+}
+
+.shell-project-sizer {
+  visibility: hidden;
+  white-space: pre;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.shell-project-input {
+  width: 100%;
+  min-width: 0;
   color: var(--text-primary);
   background: transparent;
-  border: 1px solid transparent;
   border-radius: var(--radius-sm);
-  padding: 3px 7px;
-  width: clamp(220px, 26vw, 400px);
-  min-width: 160px;
   transition: border-color var(--transition-fast), background-color var(--transition-fast);
 }
 

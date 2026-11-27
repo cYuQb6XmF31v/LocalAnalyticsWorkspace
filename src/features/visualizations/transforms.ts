@@ -1586,11 +1586,11 @@ export function computeProjectGraph(
 /**
  * Graph hover dwell delay in ms:
  * - 0%   => Infinity (hover disabled)
- * - 1%   => 2000 ms (2.00 s)
+ * - 1%   => 1000 ms (1.00 s)
  * - 100% => 0 ms (instant)
  */
 export function sensitivityToDwellMs(sensitivity: number): number {
   if (sensitivity <= 0) return Infinity;
   if (sensitivity >= 100) return 0;
-  return Math.round(((100 - sensitivity) / 99) * 2000);
+  return Math.round(((100 - sensitivity) / 99) * 1000);
 }

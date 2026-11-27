@@ -73,8 +73,13 @@ export function ElementFrame({
     }
   };
 
+  const textScale = (element.config.textScale ?? 100) / 100;
+
   return (
-    <div className={`canvas-node ${selected ? 'canvas-node--selected' : ''}`}>
+    <div
+      className={`canvas-node ${selected ? 'canvas-node--selected' : ''}`}
+      style={{ '--el-text-scale': String(textScale) } as React.CSSProperties}
+    >
       <NodeResizer
         isVisible={selected}
         minWidth={180}

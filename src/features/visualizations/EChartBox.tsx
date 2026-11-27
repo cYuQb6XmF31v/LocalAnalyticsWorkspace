@@ -278,8 +278,9 @@ export const EChartBox = forwardRef<EChartBoxHandle, EChartBoxProps>(function EC
     }
 
     const showDataLabels = Boolean(displayOptions?.showDataLabels);
-    const dataLabelFontSize = displayOptions?.dataLabelFontSize ?? 10;
-    const axisLabelFontSize = displayOptions?.axisLabelFontSize ?? 10;
+    const textScale = (displayOptions?.textScale ?? 100) / 100;
+    const dataLabelFontSize = Math.max(7, Math.round((displayOptions?.dataLabelFontSize ?? 10) * textScale));
+    const axisLabelFontSize = Math.max(7, Math.round((displayOptions?.axisLabelFontSize ?? 10) * textScale));
     const accentColor = displayOptions?.accentColor || '#7c5cff';
     const palette = [accentColor, ...SERIES_PALETTE.filter((c) => c.toLowerCase() !== accentColor.toLowerCase())];
     const asPercent = Boolean(displayOptions?.asPercent);
@@ -606,7 +607,7 @@ export const EChartBox = forwardRef<EChartBoxHandle, EChartBoxProps>(function EC
                   ...DATA_LABEL_HALO,
                   formatter: (p: { value?: unknown }) => {
                     const num = Number(p.value);
-                    if (isHist && Number.isFinite(num) && num === 0) {
+                    if (Number.isFinite(num) && num === 0) {
                       return '';
                     }
                     return asPercent ? `${formatCompactValue(p.value)}%` : formatCompactValue(p.value);

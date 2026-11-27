@@ -107,6 +107,11 @@ export type ChartAggregation = 'sum' | 'avg' | 'count' | 'min' | 'max';
 export interface NoteElementConfig {
   title: string;
   content: string;
+  fontSize?: number;
+  bold?: boolean;
+  italic?: boolean;
+  underline?: boolean;
+  textScale?: number;
 }
 
 export interface KpiElementConfig {
@@ -115,6 +120,7 @@ export interface KpiElementConfig {
   aggregation: KpiAggregation;
   showSparkline?: boolean;
   sparklineOrderFieldId?: string | null;
+  textScale?: number;
 }
 
 export type ChartSortMode = 'none' | 'label-asc' | 'label-desc' | 'value-asc' | 'value-desc';
@@ -155,6 +161,7 @@ export interface ChartDisplayOptions {
   cumulative?: boolean;
   asPercent?: boolean;
   accentColor?: string;
+  textScale?: number;
 }
 
 export interface ChartElementConfig extends ChartDisplayOptions {
@@ -169,6 +176,7 @@ export interface TableViewElementConfig {
   columnIds: string[];
   maxRows?: number;
   fontSize?: number;
+  textScale?: number;
 }
 
 export interface KanbanElementConfig {
@@ -176,6 +184,7 @@ export interface KanbanElementConfig {
   groupByFieldId: string | null;
   titleFieldId: string | null;
   detailFieldIds: string[];
+  textScale?: number;
 }
 
 export interface HistogramElementConfig extends ChartDisplayOptions {
@@ -214,6 +223,7 @@ export interface PivotTableElementConfig {
   valueFieldId: string | null;
   aggregation: ChartAggregation;
   fontSize?: number;
+  textScale?: number;
 }
 
 export type CanvasElementConfig =

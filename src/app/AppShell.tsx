@@ -104,6 +104,11 @@ export function AppShell() {
   } | null>(null);
 
   const { project, dirtySinceLastExport, needsLayoutChooser } = state;
+  const [projectNameDraft, setProjectNameDraft] = useState(project.name);
+
+  useEffect(() => {
+    setProjectNameDraft(project.name);
+  }, [project.id, project.name]);
 
   useEffect(() => {
     const syncFromHash = () => {
@@ -447,36 +452,43 @@ export function AppShell() {
 
           <span className="shell-divider desktop-only" aria-hidden="true" />
 
-          <input
-            type="text"
-            className="shell-project-input desktop-only"
-            aria-label={uk.app.renameProjectLabel}
-            defaultValue={project.name}
-            key={`${project.id}-${project.name}`}
-            onBlur={(e) => {
-              const next = e.target.value.trim();
-              if (next && next !== project.name) {
-                dispatch({ type: 'RENAME_PROJECT', name: next });
-              } else {
-                e.target.value = project.name;
-              }
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.currentTarget.blur();
-              } else if (e.key === 'Escape') {
-                e.currentTarget.value = project.name;
-                e.currentTarget.blur();
-              }
-            }}
-          />
+          <div className="shell-project-group desktop-only">
+            <div className="shell-project-sizer-wrap">
+              <span className="shell-project-sizer" aria-hidden="true">
+                {projectNameDraft || ' '}
+              </span>
+              <input
+                type="text"
+                className="shell-project-input"
+                aria-label={uk.app.renameProjectLabel}
+                value={projectNameDraft}
+                onChange={(e) => setProjectNameDraft(e.target.value)}
+                onBlur={() => {
+                  const next = projectNameDraft.trim();
+                  if (next && next !== project.name) {
+                    dispatch({ type: 'RENAME_PROJECT', name: next });
+                  } else {
+                    setProjectNameDraft(project.name);
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.currentTarget.blur();
+                  } else if (e.key === 'Escape') {
+                    setProjectNameDraft(project.name);
+                    e.currentTarget.blur();
+                  }
+                }}
+              />
+            </div>
 
-          {dirtySinceLastExport && (
-            <span className="shell-dirty-indicator desktop-only" title={uk.app.unsavedChanges}>
-              <span className="shell-dirty-dot" aria-hidden="true" />
-              <span>{uk.app.unsavedChanges}</span>
-            </span>
-          )}
+            {dirtySinceLastExport && (
+              <span className="shell-dirty-indicator" title={uk.app.unsavedChanges}>
+                <span className="shell-dirty-dot" aria-hidden="true" />
+                <span>{uk.app.unsavedChanges}</span>
+              </span>
+            )}
+          </div>
         </div>
 
         <div className="shell-header-right">

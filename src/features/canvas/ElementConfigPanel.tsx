@@ -1,9 +1,10 @@
 import { useRef, useState } from 'react';
-import { Plus, Trash2, X } from 'lucide-react';
+import { Bold, Italic, Plus, Trash2, Underline, X } from 'lucide-react';
 import { useProject } from '../../app/ProjectContext';
 import { CustomSelect } from '../../components/CustomSelect';
 import type {
   CanvasElement,
+  CanvasElementConfig,
   ChartAggregation,
   ChartDataLabelPosition,
   ChartLegendPosition,
@@ -436,6 +437,20 @@ export function ElementConfigPanel({ pageId, element, onClose }: ElementConfigPa
           />
         </div>
 
+        <ScrubNumberControl
+          label="Масштаб тексту"
+          value={element.config.textScale ?? 100}
+          min={60}
+          max={200}
+          unit="%"
+          onChange={(val) =>
+            updateConfig({
+              ...element.config,
+              textScale: val,
+            } as CanvasElementConfig)
+          }
+        />
+
         {element.type !== 'note' && (datasetOptions.length > 1 || allFilters.length > 0) && (
           <>
             <div className="config-divider" />
@@ -494,23 +509,81 @@ export function ElementConfigPanel({ pageId, element, onClose }: ElementConfigPa
         )}
 
         {element.type === 'note' && (
-          <div className="config-field">
-            <label className="config-label" htmlFor="cfg-note-text">
-              Текст нотатки
-            </label>
-            <textarea
-              id="cfg-note-text"
-              rows={5}
-              className="config-textarea"
-              value={element.config.content}
-              onChange={(e) =>
+          <>
+            <div className="config-field">
+              <span className="config-label">Форматування нотатки</span>
+              <div className="config-format-row">
+                <button
+                  type="button"
+                  className={`config-format-btn ${element.config.bold ? 'config-format-btn--active' : ''}`}
+                  onClick={() =>
+                    updateConfig({ ...element.config, bold: !element.config.bold })
+                  }
+                  title="Жирний шрифт для нотатки"
+                  aria-label="Жирний шрифт"
+                >
+                  <Bold size={13} />
+                  <span>Жирний</span>
+                </button>
+                <button
+                  type="button"
+                  className={`config-format-btn ${element.config.italic ? 'config-format-btn--active' : ''}`}
+                  onClick={() =>
+                    updateConfig({ ...element.config, italic: !element.config.italic })
+                  }
+                  title="Курсив для нотатки"
+                  aria-label="Курсив"
+                >
+                  <Italic size={13} />
+                  <span>Курсив</span>
+                </button>
+                <button
+                  type="button"
+                  className={`config-format-btn ${element.config.underline ? 'config-format-btn--active' : ''}`}
+                  onClick={() =>
+                    updateConfig({ ...element.config, underline: !element.config.underline })
+                  }
+                  title="Підкреслений текст для нотатки"
+                  aria-label="Підкреслений"
+                >
+                  <Underline size={13} />
+                  <span>Підкресл.</span>
+                </button>
+              </div>
+            </div>
+
+            <ScrubNumberControl
+              label="Розмір шрифту нотатки"
+              value={element.config.fontSize ?? 12}
+              min={10}
+              max={32}
+              onChange={(val) =>
                 updateConfig({
                   ...element.config,
-                  content: e.target.value,
+                  fontSize: val,
                 })
               }
             />
-          </div>
+
+            <div className="config-field">
+              <label className="config-label" htmlFor="cfg-note-text">
+                Текст нотатки
+              </label>
+              <textarea
+                id="cfg-note-text"
+                rows={5}
+                className="config-textarea"
+                placeholder="**жирний**, *курсив*, __підкреслений__"
+                value={element.config.content}
+                onChange={(e) =>
+                  updateConfig({
+                    ...element.config,
+                    content: e.target.value,
+                  })
+                }
+              />
+            </div>
+          </>
         )}
 
         {element.type === 'kpi' && (

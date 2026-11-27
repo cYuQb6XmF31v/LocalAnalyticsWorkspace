@@ -158,6 +158,39 @@
   color: var(--text-secondary);
 }
 
+.config-format-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.config-format-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 6px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-default);
+  background-color: var(--bg-surface);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.config-format-btn:hover {
+  color: var(--text-primary);
+  background-color: var(--bg-elevated);
+}
+
+.config-format-btn--active {
+  color: var(--accent-text);
+  background-color: var(--accent-muted);
+  border-color: var(--accent-border);
+}
+
 .config-input--compact {
   width: 64px;
   flex-shrink: 0;
