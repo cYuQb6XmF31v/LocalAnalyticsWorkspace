@@ -175,7 +175,10 @@ export function HelpPage({ onBackToWorkspace }: HelpPageProps) {
             <li>
               <strong>Граф зв’язків (Data Lineage):</strong> показує як посилання між сторінками та
               елементами, так і походження даних від таблиць, формул, Joins і фільтрів до
-              візуалізацій.
+              візуалізацій. Підтримує 3 режими (<em>Вільний Obsidian</em>, <em>Орбіта</em>,{' '}
+              <em>Дерево</em>), режим <strong>2 панелі</strong> із синхронним підсвічуванням при
+              наведенні та швидке перемикання гарячою клавішею <code>Shift+G</code> (вихід —{' '}
+              <code>Shift+G</code> або <code>Esc</code>).
             </li>
           </ul>
         </section>

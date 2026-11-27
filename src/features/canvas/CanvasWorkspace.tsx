@@ -1609,6 +1609,8 @@ function CanvasInner({ onOpenTemplates }: CanvasWorkspaceProps) {
               <div className="cw-hotkey-item"><kbd>Ctrl+A</kbd><span>Обрати всі</span></div>
               <div className="cw-hotkey-item"><kbd>Ctrl+Z</kbd><span>Скасувати</span></div>
               <div className="cw-hotkey-item"><kbd>Del</kbd><span>Видалити</span></div>
+              <div className="cw-hotkey-item"><kbd>Shift+G</kbd><span>Граф</span></div>
+              <div className="cw-hotkey-item"><kbd>?</kbd><span>Підказка</span></div>
             </div>
           </aside>
         ) : (

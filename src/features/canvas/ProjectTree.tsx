@@ -351,9 +351,11 @@ export function ProjectTree({
           type="button"
           className={`icon-btn pt-help-btn ${isGraphActive ? 'icon-btn--active' : ''}`}
           onClick={onOpenGraph}
+          title="Перемкнути граф зв’язків (Shift+G)"
         >
           <Share2 size={14} />
-          <span>{uk.header.graphView}</span>
+          <span style={{ flex: 1, textAlign: 'left' }}>{uk.header.graphView}</span>
+          <kbd className="pt-kbd">Shift+G</kbd>
         </button>
         <button
           type="button"

@@ -323,11 +323,38 @@ export function AppShell() {
       if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && event.code === 'KeyS') {
         event.preventDefault();
         void handleSaveDirect();
+        return;
+      }
+
+      // Skip navigation hotkeys when typing or inside modals
+      const target = event.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.tagName === 'SELECT' ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+      if (document.querySelector('.modal-backdrop')) {
+        return;
+      }
+
+      if (event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey && event.code === 'KeyG') {
+        event.preventDefault();
+        navigateTo(activeView === 'graph' ? 'workspace' : 'graph');
+        return;
+      }
+
+      if (event.key === 'Escape' && activeView === 'graph') {
+        event.preventDefault();
+        navigateTo('workspace');
       }
     };
     window.addEventListener('keydown', onKeyDown, { capture: true });
     return () => window.removeEventListener('keydown', onKeyDown, { capture: true });
-  }, [handleSaveDirect]);
+  }, [activeView, handleSaveDirect, navigateTo]);
 
   const handleNewProjectClick = () => {
     const hasData =
