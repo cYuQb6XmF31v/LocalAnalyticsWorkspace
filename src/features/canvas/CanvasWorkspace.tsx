@@ -568,12 +568,11 @@ function CanvasInner({ onOpenTemplates }: CanvasWorkspaceProps) {
   const [tabRenameDraft, setTabRenameDraft] = useState('');
   const [openToolbarMenu, setOpenToolbarMenu] = useState<'charts' | 'tables' | null>(null);
   const [showHotkeysHint, setShowHotkeysHint] = useState(true);
-  const [autoConfigOnHover, setAutoConfigOnHover] = useState(true);
+  const [autoConfigOnSelect, setAutoConfigOnSelect] = useState(true);
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
 
   const surfaceRef = useRef<HTMLDivElement | null>(null);
   const toolbarMenuRef = useRef<HTMLDivElement | null>(null);
-  const hoverConfigTimerRef = useRef<number | null>(null);
   const snappedPosRef = useRef<Record<string, Position>>({});
   const snappedResizeRef = useRef<Record<string, ResizeRect>>({});
   const lastFocusedSelectionRef = useRef<string | null>(null);
@@ -661,6 +660,12 @@ function CanvasInner({ onOpenTemplates }: CanvasWorkspaceProps) {
       setConfigElementId(null);
     }
   }, [activePage, configElementId]);
+
+  useEffect(() => {
+    if (autoConfigOnSelect && state.selectedElementId) {
+      setConfigElementId(state.selectedElementId);
+    }
+  }, [state.selectedElementId, autoConfigOnSelect]);
 
   useEffect(() => {
     if (!state.selectedElementId) {
@@ -1294,18 +1299,12 @@ function CanvasInner({ onOpenTemplates }: CanvasWorkspaceProps) {
           </button>
           <button
             type="button"
-            className={`icon-btn icon-btn--outlined ${autoConfigOnHover ? 'icon-btn--active' : ''}`}
-            onClick={() => {
-              setAutoConfigOnHover((prev) => !prev);
-              if (hoverConfigTimerRef.current) {
-                window.clearTimeout(hoverConfigTimerRef.current);
-                hoverConfigTimerRef.current = null;
-              }
-            }}
+            className={`icon-btn icon-btn--outlined ${autoConfigOnSelect ? 'icon-btn--active' : ''}`}
+            onClick={() => setAutoConfigOnSelect((prev) => !prev)}
             title={
-              autoConfigOnHover
-                ? 'Авто-відкриття властивостей при наведенні увімкнено (клік щоб вимкнути)'
-                : 'Авто-відкриття властивостей при наведенні вимкнено (клік щоб увімкнути)'
+              autoConfigOnSelect
+                ? 'Авто-відкриття властивостей при натисканні на елемент увімкнено (клік щоб вимкнути)'
+                : 'Авто-відкриття властивостей при натисканні вимкнено (клік щоб увімкнути)'
             }
           >
             <SlidersHorizontal size={13} />
@@ -1377,18 +1376,27 @@ function CanvasInner({ onOpenTemplates }: CanvasWorkspaceProps) {
               const nextIds = exists
                 ? selectedIds.filter((id) => id !== node.id)
                 : [...selectedIds, node.id];
+              const nextPrimary = nextIds.includes(node.id)
+                ? node.id
+                : (nextIds[nextIds.length - 1] ?? null);
               dispatch({
                 type: 'SELECT_ELEMENTS',
                 elementIds: nextIds,
-                primaryId: nextIds.includes(node.id) ? node.id : (nextIds[nextIds.length - 1] ?? null),
+                primaryId: nextPrimary,
                 pageId: activePage.id,
               });
+              if (autoConfigOnSelect) {
+                setConfigElementId(nextPrimary);
+              }
             } else {
               dispatch({
                 type: 'SELECT_ELEMENT',
                 elementId: node.id,
                 pageId: activePage.id,
               });
+              if (autoConfigOnSelect) {
+                setConfigElementId(node.id);
+              }
             }
           }}
           onPaneClick={() => {
@@ -1430,24 +1438,6 @@ function CanvasInner({ onOpenTemplates }: CanvasWorkspaceProps) {
             });
           }}
           onNodeDrag={handleNodeDrag}
-          onNodeMouseEnter={(_event, node) => {
-            if (!autoConfigOnHover) {
-              return;
-            }
-            if (hoverConfigTimerRef.current) {
-              window.clearTimeout(hoverConfigTimerRef.current);
-            }
-            hoverConfigTimerRef.current = window.setTimeout(() => {
-              setConfigElementId(node.id);
-              hoverConfigTimerRef.current = null;
-            }, 160);
-          }}
-          onNodeMouseLeave={() => {
-            if (hoverConfigTimerRef.current) {
-              window.clearTimeout(hoverConfigTimerRef.current);
-              hoverConfigTimerRef.current = null;
-            }
-          }}
           onNodeDragStop={(_event, node, draggedNodes) => {
             const snappedMain = snappedPosRef.current[node.id];
             delete snappedPosRef.current[node.id];
