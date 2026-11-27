@@ -1,6 +1,6 @@
 .template-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
   gap: var(--space-3);
 }
 
@@ -9,27 +9,29 @@
   flex-direction: column;
   align-items: flex-start;
   text-align: left;
-  gap: var(--space-2);
-  padding: var(--space-3);
+  gap: 8px;
+  padding: 14px;
   border-radius: var(--radius-lg);
   background-color: var(--bg-surface);
-  border: 1px solid var(--border-default);
-  transition: border-color var(--transition-fast), background-color var(--transition-fast);
+  border: 1px solid var(--border-subtle);
+  transition: border-color var(--transition-fast), background-color var(--transition-fast),
+    transform var(--transition-fast);
 }
 
 .template-card:hover {
-  border-color: var(--accent-border);
+  border-color: var(--border-strong);
   background-color: var(--bg-elevated);
 }
 
 .template-card-title {
   font-size: var(--text-sm);
   font-weight: 600;
+  letter-spacing: -0.01em;
   color: var(--text-primary);
 }
 
 .template-card-desc {
   font-size: var(--text-xs);
   color: var(--text-secondary);
-  line-height: 1.45;
+  line-height: 1.5;
 }

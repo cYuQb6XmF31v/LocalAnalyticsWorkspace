@@ -371,19 +371,21 @@ export function AppShell() {
             }}
           />
 
-          <span className="shell-badge desktop-only">{uk.app.stageBadge}</span>
           {dirtySinceLastExport && (
-            <span className="shell-badge shell-badge--warning desktop-only">
-              {uk.app.unsavedChanges}
+            <span className="shell-dirty-indicator desktop-only" title={uk.app.unsavedChanges}>
+              <span className="shell-dirty-dot" aria-hidden="true" />
+              <span>{uk.app.unsavedChanges}</span>
             </span>
           )}
         </div>
 
         <div className="shell-header-right">
-          <span className="shell-badge shell-badge--neutral desktop-only">
+          <span className="shell-local-note desktop-only">
             <ShieldCheck size={12} />
-            {uk.app.localOnlyNotice}
+            <span>{uk.app.localOnlyNotice}</span>
           </span>
+
+          <span className="shell-divider desktop-only" aria-hidden="true" />
 
           <button
             type="button"
@@ -591,7 +593,7 @@ export function AppShell() {
                     <span className="pane-header-title">
                       <Database size={14} />
                       <span>{uk.sourceData.title}</span>
-                      <span className="shell-badge">{uk.sourceData.badgePrimary}</span>
+                      <span className="shell-badge shell-badge--neutral">{uk.sourceData.badgePrimary}</span>
                     </span>
                   </div>
 

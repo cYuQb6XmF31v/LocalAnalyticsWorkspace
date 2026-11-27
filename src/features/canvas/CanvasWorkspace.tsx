@@ -14,12 +14,14 @@ import '@xyflow/react/dist/style.css';
 import {
   BarChart2,
   BarChart3,
+  ChevronDown,
   Columns3,
   Copy,
   Crosshair,
   FilePlus,
   Grid3x3,
   Hash,
+  Keyboard,
   LayoutTemplate,
   LineChart,
   Magnet,
@@ -33,6 +35,7 @@ import {
   Table,
   Trash2,
   Undo2,
+  X,
 } from 'lucide-react';
 import { useProject } from '../../app/ProjectContext';
 import { createStableId } from '../../domain/id';
@@ -560,8 +563,11 @@ function CanvasInner({ onOpenTemplates }: CanvasWorkspaceProps) {
   const [relativeBadge, setRelativeBadge] = useState<{ label: string; pos: Position } | null>(null);
   const [renamingTabPageId, setRenamingTabPageId] = useState<string | null>(null);
   const [tabRenameDraft, setTabRenameDraft] = useState('');
+  const [openToolbarMenu, setOpenToolbarMenu] = useState<'charts' | 'tables' | null>(null);
+  const [showHotkeysHint, setShowHotkeysHint] = useState(true);
 
   const surfaceRef = useRef<HTMLDivElement | null>(null);
+  const toolbarMenuRef = useRef<HTMLDivElement | null>(null);
   const snappedPosRef = useRef<Record<string, Position>>({});
   const snappedResizeRef = useRef<Record<string, ResizeRect>>({});
   const lastFocusedSelectionRef = useRef<string | null>(null);
@@ -693,47 +699,180 @@ function CanvasInner({ onOpenTemplates }: CanvasWorkspaceProps) {
     };
   }, [contextMenu]);
 
-  const handleAddElement = (type: CanvasElementType, explicitPosition?: Position) => {
-    const element = createDefaultElement(
-      type,
-      activePage.elements.length,
-      dataset,
-      explicitPosition,
-    );
-    lastFocusedSelectionRef.current = element.id;
-    dispatch({
-      type: 'ADD_ELEMENT',
-      pageId: activePage.id,
-      element,
-      select: true,
-    });
-    if (type !== 'note') {
-      setConfigElementId(element.id);
+  useEffect(() => {
+    if (!openToolbarMenu) {
+      return;
     }
-  };
+    const handlePointerDown = (event: PointerEvent) => {
+      if (
+        toolbarMenuRef.current &&
+        event.target instanceof Node &&
+        !toolbarMenuRef.current.contains(event.target)
+      ) {
+        setOpenToolbarMenu(null);
+      }
+    };
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setOpenToolbarMenu(null);
+      }
+    };
+    window.addEventListener('pointerdown', handlePointerDown);
+    window.addEventListener('keydown', handleKey);
+    return () => {
+      window.removeEventListener('pointerdown', handlePointerDown);
+      window.removeEventListener('keydown', handleKey);
+    };
+  }, [openToolbarMenu]);
 
-  const handleDuplicateElement = (element: CanvasElement) => {
-    const copy: CanvasElement = {
-      ...element,
-      id: createStableId('el'),
-      position: {
-        x: element.position.x + 28,
-        y: element.position.y + 28,
-      },
-      config: {
-        ...element.config,
-        title: `${element.config.title} (копія)`,
-      },
-    } as CanvasElement;
+  const handleAddElement = useCallback(
+    (type: CanvasElementType, explicitPosition?: Position) => {
+      const element = createDefaultElement(
+        type,
+        activePage.elements.length,
+        dataset,
+        explicitPosition,
+      );
+      lastFocusedSelectionRef.current = element.id;
+      dispatch({
+        type: 'ADD_ELEMENT',
+        pageId: activePage.id,
+        element,
+        select: true,
+      });
+      if (type !== 'note') {
+        setConfigElementId(element.id);
+      }
+    },
+    [activePage.elements.length, activePage.id, dataset, dispatch],
+  );
 
-    lastFocusedSelectionRef.current = copy.id;
-    dispatch({
-      type: 'ADD_ELEMENT',
-      pageId: activePage.id,
-      element: copy,
-      select: true,
-    });
-  };
+  const handleDuplicateElement = useCallback(
+    (element: CanvasElement) => {
+      const copy: CanvasElement = {
+        ...element,
+        id: createStableId('el'),
+        position: {
+          x: element.position.x + 28,
+          y: element.position.y + 28,
+        },
+        config: {
+          ...element.config,
+          title: `${element.config.title} (копія)`,
+        },
+      } as CanvasElement;
+
+      lastFocusedSelectionRef.current = copy.id;
+      dispatch({
+        type: 'ADD_ELEMENT',
+        pageId: activePage.id,
+        element: copy,
+        select: true,
+      });
+    },
+    [activePage.id, dispatch],
+  );
+
+  // Canvas-specific keyboard shortcuts (layout-independent via event.code)
+  useEffect(() => {
+    const handleCanvasHotkeys = (event: KeyboardEvent) => {
+      if (isEditableTarget(event.target)) {
+        return;
+      }
+      if (document.querySelector('.modal-backdrop')) {
+        return;
+      }
+
+      const mod = event.ctrlKey || event.metaKey;
+      if (mod && !event.altKey && !event.shiftKey) {
+        if (event.code === 'KeyD') {
+          const primaryEl = state.selectedElementId
+            ? activePage.elements.find((e) => e.id === state.selectedElementId)
+            : null;
+          if (primaryEl) {
+            event.preventDefault();
+            handleDuplicateElement(primaryEl);
+          }
+          return;
+        }
+        if (event.code === 'KeyA' && activePage.elements.length > 0) {
+          event.preventDefault();
+          const allIds = activePage.elements.map((e) => e.id);
+          dispatch({
+            type: 'SELECT_ELEMENTS',
+            elementIds: allIds,
+            primaryId: allIds[0] ?? null,
+            pageId: activePage.id,
+          });
+          return;
+        }
+      }
+
+      if (mod || event.altKey) {
+        return;
+      }
+
+      if (event.key === '?' || (event.code === 'Slash' && event.shiftKey)) {
+        event.preventDefault();
+        setShowHotkeysHint((prev) => !prev);
+        return;
+      }
+
+      switch (event.code) {
+        case 'KeyN':
+          event.preventDefault();
+          handleAddElement('note');
+          break;
+        case 'KeyK':
+          event.preventDefault();
+          handleAddElement('kpi');
+          break;
+        case 'KeyC':
+          event.preventDefault();
+          handleAddElement('bar-chart');
+          break;
+        case 'KeyG':
+          event.preventDefault();
+          setSnapEnabled((prev) => !prev);
+          break;
+        case 'KeyF':
+          event.preventDefault();
+          fitView({ padding: 0.25, duration: 220 });
+          break;
+        case 'Digit0':
+          event.preventDefault();
+          setViewport({ x: 0, y: 0, zoom: 1 }, { duration: 200 });
+          dispatch({
+            type: 'SET_PAGE_VIEWPORT',
+            pageId: activePage.id,
+            viewport: { x: 0, y: 0, zoom: 1 },
+          });
+          break;
+        case 'Escape':
+          if (configElementId) {
+            setConfigElementId(null);
+          } else if (selectedIds.length > 0) {
+            lastFocusedSelectionRef.current = null;
+            dispatch({ type: 'SELECT_ELEMENT', elementId: null, pageId: activePage.id });
+          }
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleCanvasHotkeys);
+    return () => window.removeEventListener('keydown', handleCanvasHotkeys);
+  }, [
+    activePage.elements,
+    activePage.id,
+    configElementId,
+    dispatch,
+    fitView,
+    handleAddElement,
+    handleDuplicateElement,
+    selectedIds.length,
+    setViewport,
+    state.selectedElementId,
+  ]);
 
   const handleNodesDelete = useCallback(
     (deletedNodes: CanvasFlowNode[]) => {
@@ -933,11 +1072,14 @@ function CanvasInner({ onOpenTemplates }: CanvasWorkspaceProps) {
     <CanvasSnapContext.Provider value={snapContextValue}>
     <div className="cw-root" onKeyDown={handleSurfaceKeyDown}>
       <div className="cw-toolbar">
-        <div className="cw-toolbar-group">
+        <div className="cw-toolbar-group" ref={toolbarMenuRef}>
           <button
             type="button"
             className="icon-btn icon-btn--outlined"
-            onClick={() => handleAddElement('note')}
+            onClick={() => {
+              handleAddElement('note');
+              setOpenToolbarMenu(null);
+            }}
           >
             <StickyNote size={13} />
             <span>{uk.canvas.addNote}</span>
@@ -945,83 +1087,180 @@ function CanvasInner({ onOpenTemplates }: CanvasWorkspaceProps) {
           <button
             type="button"
             className="icon-btn icon-btn--outlined"
-            onClick={() => handleAddElement('kpi')}
+            onClick={() => {
+              handleAddElement('kpi');
+              setOpenToolbarMenu(null);
+            }}
           >
             <Hash size={13} />
             <span>{uk.canvas.addKpi}</span>
           </button>
-          <button
-            type="button"
-            className="icon-btn icon-btn--outlined"
-            onClick={() => handleAddElement('line-chart')}
-          >
-            <LineChart size={13} />
-            <span>{uk.canvas.addLine}</span>
-          </button>
-          <button
-            type="button"
-            className="icon-btn icon-btn--outlined"
-            onClick={() => handleAddElement('bar-chart')}
-          >
-            <BarChart3 size={13} />
-            <span>{uk.canvas.addBar}</span>
-          </button>
-          <button
-            type="button"
-            className="icon-btn icon-btn--outlined"
-            onClick={() => handleAddElement('histogram')}
-          >
-            <BarChart2 size={13} />
-            <span>{uk.canvas.addHistogram}</span>
-          </button>
-          <button
-            type="button"
-            className="icon-btn icon-btn--outlined"
-            onClick={() => handleAddElement('pie-chart')}
-          >
-            <PieChart size={13} />
-            <span>{uk.canvas.addPie}</span>
-          </button>
-          <button
-            type="button"
-            className="icon-btn icon-btn--outlined"
-            onClick={() => handleAddElement('stacked-bar')}
-          >
-            <BarChart3 size={13} />
-            <span>{uk.canvas.addStackedBar}</span>
-          </button>
-          <button
-            type="button"
-            className="icon-btn icon-btn--outlined"
-            onClick={() => handleAddElement('scatter')}
-          >
-            <ScatterChart size={13} />
-            <span>{uk.canvas.addScatter}</span>
-          </button>
-          <button
-            type="button"
-            className="icon-btn icon-btn--outlined"
-            onClick={() => handleAddElement('table-view')}
-          >
-            <Table size={13} />
-            <span>{uk.canvas.addTable}</span>
-          </button>
-          <button
-            type="button"
-            className="icon-btn icon-btn--outlined"
-            onClick={() => handleAddElement('pivot-table')}
-          >
-            <Grid3x3 size={13} />
-            <span>{uk.canvas.addPivot}</span>
-          </button>
-          <button
-            type="button"
-            className="icon-btn icon-btn--outlined"
-            onClick={() => handleAddElement('kanban')}
-          >
-            <Columns3 size={13} />
-            <span>{uk.canvas.addKanban}</span>
-          </button>
+
+          <div className="cw-dropdown-wrap">
+            <button
+              type="button"
+              className={`icon-btn icon-btn--outlined ${openToolbarMenu === 'charts' ? 'icon-btn--active' : ''}`}
+              aria-haspopup="menu"
+              aria-expanded={openToolbarMenu === 'charts'}
+              onClick={() =>
+                setOpenToolbarMenu((prev) => (prev === 'charts' ? null : 'charts'))
+              }
+            >
+              <BarChart3 size={13} />
+              <span>Графіки</span>
+              <ChevronDown size={12} className="cw-dropdown-chevron" />
+            </button>
+            {openToolbarMenu === 'charts' && (
+              <div className="cw-dropdown-menu" role="menu">
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="cw-context-item"
+                  onClick={() => {
+                    handleAddElement('line-chart');
+                    setOpenToolbarMenu(null);
+                  }}
+                >
+                  <span className="cw-context-item-left">
+                    <LineChart size={13} />
+                    <span>Лінійний графік</span>
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="cw-context-item"
+                  onClick={() => {
+                    handleAddElement('bar-chart');
+                    setOpenToolbarMenu(null);
+                  }}
+                >
+                  <span className="cw-context-item-left">
+                    <BarChart3 size={13} />
+                    <span>Стовпчиковий графік</span>
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="cw-context-item"
+                  onClick={() => {
+                    handleAddElement('histogram');
+                    setOpenToolbarMenu(null);
+                  }}
+                >
+                  <span className="cw-context-item-left">
+                    <BarChart2 size={13} />
+                    <span>Гістограма розподілу</span>
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="cw-context-item"
+                  onClick={() => {
+                    handleAddElement('pie-chart');
+                    setOpenToolbarMenu(null);
+                  }}
+                >
+                  <span className="cw-context-item-left">
+                    <PieChart size={13} />
+                    <span>Кругова діаграма</span>
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="cw-context-item"
+                  onClick={() => {
+                    handleAddElement('stacked-bar');
+                    setOpenToolbarMenu(null);
+                  }}
+                >
+                  <span className="cw-context-item-left">
+                    <BarChart3 size={13} />
+                    <span>Складений графік</span>
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="cw-context-item"
+                  onClick={() => {
+                    handleAddElement('scatter');
+                    setOpenToolbarMenu(null);
+                  }}
+                >
+                  <span className="cw-context-item-left">
+                    <ScatterChart size={13} />
+                    <span>Точкова діаграма</span>
+                  </span>
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div className="cw-dropdown-wrap">
+            <button
+              type="button"
+              className={`icon-btn icon-btn--outlined ${openToolbarMenu === 'tables' ? 'icon-btn--active' : ''}`}
+              aria-haspopup="menu"
+              aria-expanded={openToolbarMenu === 'tables'}
+              onClick={() =>
+                setOpenToolbarMenu((prev) => (prev === 'tables' ? null : 'tables'))
+              }
+            >
+              <Table size={13} />
+              <span>Таблиці та дошки</span>
+              <ChevronDown size={12} className="cw-dropdown-chevron" />
+            </button>
+            {openToolbarMenu === 'tables' && (
+              <div className="cw-dropdown-menu" role="menu">
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="cw-context-item"
+                  onClick={() => {
+                    handleAddElement('table-view');
+                    setOpenToolbarMenu(null);
+                  }}
+                >
+                  <span className="cw-context-item-left">
+                    <Table size={13} />
+                    <span>Таблиця перегляду</span>
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="cw-context-item"
+                  onClick={() => {
+                    handleAddElement('pivot-table');
+                    setOpenToolbarMenu(null);
+                  }}
+                >
+                  <span className="cw-context-item-left">
+                    <Grid3x3 size={13} />
+                    <span>Зведена таблиця</span>
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="cw-context-item"
+                  onClick={() => {
+                    handleAddElement('kanban');
+                    setOpenToolbarMenu(null);
+                  }}
+                >
+                  <span className="cw-context-item-left">
+                    <Columns3 size={13} />
+                    <span>Kanban-дошка</span>
+                  </span>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="cw-toolbar-group">
@@ -1296,6 +1535,50 @@ function CanvasInner({ onOpenTemplates }: CanvasWorkspaceProps) {
             </>
           )}
         </div>
+
+        {showHotkeysHint ? (
+          <aside className="cw-hotkeys-card" aria-label="Підказка гарячих клавіш">
+            <div className="cw-hotkeys-head">
+              <span className="cw-hotkeys-title">
+                <Keyboard size={12} />
+                <span>Гарячі клавіші</span>
+              </span>
+              <button
+                type="button"
+                className="sd-mini-btn"
+                onClick={() => setShowHotkeysHint(false)}
+                title="Приховати підказку (?)"
+                aria-label="Приховати підказку гарячих клавіш"
+              >
+                <X size={12} />
+              </button>
+            </div>
+            <div className="cw-hotkeys-grid">
+              <div className="cw-hotkey-item"><kbd>N</kbd><span>Нотатка</span></div>
+              <div className="cw-hotkey-item"><kbd>K</kbd><span>KPI</span></div>
+              <div className="cw-hotkey-item"><kbd>C</kbd><span>Графік</span></div>
+              <div className="cw-hotkey-item"><kbd>G</kbd><span>Прив’язка</span></div>
+              <div className="cw-hotkey-item"><kbd>F</kbd><span>Вписати</span></div>
+              <div className="cw-hotkey-item"><kbd>0</kbd><span>100%</span></div>
+              <div className="cw-hotkey-item"><kbd>Ctrl+D</kbd><span>Дублювати</span></div>
+              <div className="cw-hotkey-item"><kbd>Ctrl+A</kbd><span>Обрати всі</span></div>
+              <div className="cw-hotkey-item"><kbd>Ctrl+Z</kbd><span>Скасувати</span></div>
+              <div className="cw-hotkey-item"><kbd>Del</kbd><span>Видалити</span></div>
+            </div>
+          </aside>
+        ) : (
+          <button
+            type="button"
+            className="cw-hotkeys-pill"
+            onClick={() => setShowHotkeysHint(true)}
+            title="Показати підказку гарячих клавіш (?)"
+            aria-label="Показати гарячі клавіші"
+          >
+            <Keyboard size={12} />
+            <span>Клавіші</span>
+            <kbd>?</kbd>
+          </button>
+        )}
 
         {configElement && (
           <ElementConfigPanel

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   ArrowLeft,
   ArrowRight,
@@ -29,6 +29,8 @@ interface PendingColumnDelete {
   references: ColumnReference[];
 }
 
+const DEFAULT_COL_WIDTH = 152;
+
 export function SourceDataGrid({ onRequestImportTxt }: SourceDataGridProps) {
   const { state, dispatch } = useProject();
   const dataset = state.project.primaryDataset;
@@ -37,6 +39,38 @@ export function SourceDataGrid({ onRequestImportTxt }: SourceDataGridProps) {
   const [newColName, setNewColName] = useState('');
   const [newColType, setNewColType] = useState<ColumnType>('text');
   const [pendingDelete, setPendingDelete] = useState<PendingColumnDelete | null>(null);
+  const [colWidths, setColWidths] = useState<Record<string, number>>({});
+  const colResizeRef = useRef<{ colId: string; startX: number; startWidth: number } | null>(null);
+
+  const handleColResizeStart = (colId: string, event: React.PointerEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const startWidth = colWidths[colId] ?? DEFAULT_COL_WIDTH;
+    colResizeRef.current = { colId, startX: event.clientX, startWidth };
+
+    const handleMove = (moveEvent: PointerEvent) => {
+      if (!colResizeRef.current) {
+        return;
+      }
+      const dx = moveEvent.clientX - colResizeRef.current.startX;
+      const nextWidth = Math.max(
+        44,
+        Math.min(480, Math.round(colResizeRef.current.startWidth + dx)),
+      );
+      setColWidths((prev) => ({ ...prev, [colResizeRef.current!.colId]: nextWidth }));
+    };
+
+    const handleUp = () => {
+      colResizeRef.current = null;
+      window.removeEventListener('pointermove', handleMove);
+      window.removeEventListener('pointerup', handleUp);
+      window.removeEventListener('pointercancel', handleUp);
+    };
+
+    window.addEventListener('pointermove', handleMove);
+    window.addEventListener('pointerup', handleUp);
+    window.addEventListener('pointercancel', handleUp);
+  };
 
   const handleCreateColumn = (event: React.FormEvent) => {
     event.preventDefault();
@@ -176,10 +210,20 @@ export function SourceDataGrid({ onRequestImportTxt }: SourceDataGridProps) {
         </div>
       ) : (
         <div className="sd-grid-scroll">
-          <table className="sd-table">
+          <table className="sd-table sd-table--houdini">
+            <colgroup>
+              <col style={{ width: '42px' }} />
+              {dataset.columns.map((col) => (
+                <col
+                  key={col.id}
+                  style={{ width: `${colWidths[col.id] ?? DEFAULT_COL_WIDTH}px` }}
+                />
+              ))}
+              <col style={{ width: '32px' }} />
+            </colgroup>
             <thead>
               <tr>
-                <th className="sd-th-index" scope="col">
+                <th className="sd-th-index" scope="col" title="Індекс рядка">
                   #
                 </th>
                 {dataset.columns.map((col, colIndex) => (
@@ -274,6 +318,21 @@ export function SourceDataGrid({ onRequestImportTxt }: SourceDataGridProps) {
                         </div>
                       </div>
                     </div>
+                    <div
+                      className="sd-col-resizer"
+                      role="separator"
+                      aria-orientation="vertical"
+                      aria-label={`Змінити ширину колонки ${col.name}`}
+                      title="Потягніть для зміни ширини · Подвійний клік — скинути"
+                      onPointerDown={(e) => handleColResizeStart(col.id, e)}
+                      onDoubleClick={() =>
+                        setColWidths((prev) => {
+                          const next = { ...prev };
+                          delete next[col.id];
+                          return next;
+                        })
+                      }
+                    />
                   </th>
                 ))}
                 <th className="sd-th-actions" scope="col" aria-label={uk.sourceData.deleteRow} />
@@ -321,7 +380,9 @@ export function SourceDataGrid({ onRequestImportTxt }: SourceDataGridProps) {
                               col.type === 'number' || col.type === 'date'
                                 ? 'sd-cell-input--mono'
                                 : ''
-                            } ${!validation.valid ? 'sd-cell-input--invalid' : ''}`}
+                            } ${col.type === 'number' ? 'sd-cell-input--number' : ''} ${
+                              !validation.valid ? 'sd-cell-input--invalid' : ''
+                            }`}
                             aria-label={`${col.name}, рядок ${rowIndex + 1}`}
                             aria-invalid={!validation.valid}
                             title={errorTooltip}

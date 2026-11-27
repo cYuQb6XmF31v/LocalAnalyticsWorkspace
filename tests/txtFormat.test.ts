@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { createEmptyProject } from '../src/app/projectReducer';
 import { parseTxtContent } from '../src/features/project-file/txtParser';
@@ -382,6 +384,19 @@ describe('TXT parser & serializer', () => {
       expect(parsed.project.canvases[0].elements[6].config).toEqual(
         project.canvases[0].elements[6].config,
       );
+    }
+  });
+
+  it('parses public/sample-100-rows.txt cleanly with 100 rows and 9 columns', () => {
+    const samplePath = path.resolve(process.cwd(), 'public/sample-100-rows.txt');
+    const raw = fs.readFileSync(samplePath, 'utf8');
+    const parsed = parseTxtContent(raw, 'sample-100-rows');
+    expect(parsed.kind).toBe('dataset');
+    expect(parsed.errors).toEqual([]);
+    expect(parsed.warnings).toEqual([]);
+    if (parsed.kind === 'dataset') {
+      expect(parsed.dataset.columns).toHaveLength(9);
+      expect(parsed.dataset.rows).toHaveLength(100);
     }
   });
 });

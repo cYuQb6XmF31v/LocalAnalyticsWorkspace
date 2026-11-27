@@ -3,14 +3,14 @@
   top: 48px;
   right: 12px;
   z-index: 15;
-  width: 280px;
-  max-height: min(520px, calc(100% - 64px));
+  width: 288px;
+  max-height: min(540px, calc(100% - 64px));
   display: flex;
   flex-direction: column;
   background-color: var(--bg-panel);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-lg);
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
   overflow: hidden;
 }
 
@@ -19,11 +19,12 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 12px;
+  padding: 9px 12px;
   border-bottom: 1px solid var(--border-subtle);
   background-color: var(--bg-surface);
   font-size: var(--text-sm);
   font-weight: 600;
+  letter-spacing: -0.01em;
 }
 
 .config-panel-body {
