@@ -124,6 +124,7 @@ export interface ChartDisplayOptions {
   dataLabelFontSize?: number;
   rotateLabels?: boolean;
   axisLabelFontSize?: number;
+  showLegend?: boolean;
   sortBy?: ChartSortMode;
   filterText?: string;
   topN?: number;

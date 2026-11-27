@@ -1,5 +1,5 @@
 import { lazy, Suspense, useRef, useState } from 'react';
-import { CalendarDays, ChevronDown, ChevronRight } from 'lucide-react';
+import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useProject } from '../../app/ProjectContext';
 import type { Dataset } from '../../domain/models';
 import { evaluateDatasetFormulas } from './formulaEngine';
@@ -53,6 +53,25 @@ export function ActivityHeatmapPanel({ dataset: datasetProp }: { dataset?: Datas
     ? computeActivityHeatmap(dataset, effectiveColId, selectedYear)
     : null;
 
+  const yearOptions =
+    result?.status === 'ok'
+      ? Array.from(
+          new Set([
+            ...result.availableYears,
+            String(Number(result.year) - 1),
+            result.year,
+            String(Number(result.year) + 1),
+          ]),
+        )
+          .filter((y) => /^\d{4}$/.test(y))
+          .sort((a, b) => a.localeCompare(b))
+      : [];
+
+  const yearRecordCount =
+    result?.status === 'ok'
+      ? result.entries.reduce((sum, [, cnt]) => sum + cnt, 0)
+      : 0;
+
   return (
     <section className="heatmap-dock" aria-label="Календар активності за датою">
       {isExpanded && (
@@ -99,24 +118,45 @@ export function ActivityHeatmapPanel({ dataset: datasetProp }: { dataset?: Datas
                 ))}
               </select>
 
-              {result.status === 'ok' && result.availableYears.length > 1 && (
-                <select
-                  className="sd-select"
-                  aria-label="Рік календаря"
-                  value={result.year}
-                  onChange={(e) => setSelectedYear(e.target.value)}
-                >
-                  {result.availableYears.map((yr) => (
-                    <option key={yr} value={yr}>
-                      {yr}
-                    </option>
-                  ))}
-                </select>
+              {result.status === 'ok' && (
+                <div className="heatmap-year-nav" role="group" aria-label="Перемикач року календаря">
+                  <button
+                    type="button"
+                    className="sd-mini-btn"
+                    onClick={() => setSelectedYear(String(Math.max(1970, Number(result.year) - 1)))}
+                    aria-label="Попередній рік"
+                    title="Попередній рік"
+                  >
+                    <ChevronLeft size={12} />
+                  </button>
+                  <select
+                    className="sd-select heatmap-year-select"
+                    aria-label="Рік календаря"
+                    value={result.year}
+                    onChange={(e) => setSelectedYear(e.target.value)}
+                  >
+                    {yearOptions.map((yr) => (
+                      <option key={yr} value={yr}>
+                        {yr}
+                        {result.availableYears.includes(yr) ? '' : ' (0)'}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    className="sd-mini-btn"
+                    onClick={() => setSelectedYear(String(Math.min(2100, Number(result.year) + 1)))}
+                    aria-label="Наступний рік"
+                    title="Наступний рік"
+                  >
+                    <ChevronRight size={12} />
+                  </button>
+                </div>
               )}
 
               {result.status === 'ok' && (
                 <span className="placeholder-hint">
-                  Записів: {result.totalValidRecords}
+                  За {result.year}: {yearRecordCount} (усього: {result.totalValidRecords})
                   {result.skippedInvalidCount > 0
                     ? ` · Пропущено невалідних дат: ${result.skippedInvalidCount}`
                     : ''}

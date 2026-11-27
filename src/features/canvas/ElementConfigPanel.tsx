@@ -918,6 +918,26 @@ export function ElementConfigPanel({ pageId, element, onClose }: ElementConfigPa
                 </label>
               )}
 
+              {element.type !== 'scatter' && (
+                <label className="config-check-row">
+                  <input
+                    type="checkbox"
+                    checked={
+                      element.type === 'pie-chart' || element.type === 'stacked-bar'
+                        ? element.config.showLegend !== false
+                        : Boolean(element.config.showLegend)
+                    }
+                    onChange={(e) =>
+                      updateConfig({
+                        ...element.config,
+                        showLegend: e.target.checked,
+                      })
+                    }
+                  />
+                  <span>Показувати легенду</span>
+                </label>
+              )}
+
               <ScrubNumberControl
                 label="Розмір шрифту підписів"
                 value={element.config.axisLabelFontSize ?? 10}

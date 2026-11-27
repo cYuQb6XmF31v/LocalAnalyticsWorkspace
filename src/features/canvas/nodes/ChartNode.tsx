@@ -7,6 +7,7 @@ import {
   BarChart3,
   Hash,
   LineChart,
+  List,
   Percent,
   PieChart,
   RotateCcw,
@@ -336,6 +337,10 @@ export function ChartNode({ data, selected }: NodeProps<CanvasFlowNode>) {
   const isZoomable = isAxisChart || element.type === 'scatter';
   const showDataLabels = Boolean(element.config.showDataLabels);
   const isRotateActive = element.config.rotateLabels !== false;
+  const hasDefaultLegend = element.type === 'pie-chart' || element.type === 'stacked-bar';
+  const showLegend = hasDefaultLegend
+    ? element.config.showLegend !== false
+    : Boolean(element.config.showLegend);
   const currentSort: ChartSortMode = element.config.sortBy ?? 'none';
 
   const patchConfig = (patch: Partial<typeof element.config>) => {
@@ -450,6 +455,20 @@ export function ChartNode({ data, selected }: NodeProps<CanvasFlowNode>) {
       >
         <Hash size={11} />
       </button>
+      {element.type !== 'scatter' && (
+        <button
+          type="button"
+          className={`sd-mini-btn ${showLegend ? 'sd-mini-btn--active' : ''}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            patchConfig({ showLegend: !showLegend });
+          }}
+          title={showLegend ? 'Приховати легенду' : 'Показати легенду'}
+          aria-label="Показувати легенду"
+        >
+          <List size={11} />
+        </button>
+      )}
       {isAxisChart && (
         <button
           type="button"

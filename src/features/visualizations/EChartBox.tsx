@@ -212,6 +212,7 @@ export const EChartBox = forwardRef<EChartBoxHandle, EChartBoxProps>(function EC
     ];
 
     if (payload.kind === 'pie') {
+      const showLegend = displayOptions?.showLegend !== false;
       chart.setOption(
         {
           animationDuration: 220,
@@ -223,6 +224,7 @@ export const EChartBox = forwardRef<EChartBoxHandle, EChartBoxProps>(function EC
             formatter: '{b}: {c} ({d}%)',
           },
           legend: {
+            show: showLegend,
             bottom: 0,
             textStyle: { color: '#a1a7b8', fontSize: axisLabelFontSize },
             type: 'scroll',
@@ -231,15 +233,22 @@ export const EChartBox = forwardRef<EChartBoxHandle, EChartBoxProps>(function EC
             {
               name: payload.seriesName,
               type: 'pie',
-              radius: payload.isDonut ? ['44%', '72%'] : '70%',
-              center: ['50%', '44%'],
+              radius: payload.isDonut
+                ? showLegend
+                  ? ['44%', '72%']
+                  : ['48%', '80%']
+                : showLegend
+                  ? '70%'
+                  : '78%',
+              center: showLegend ? ['50%', '44%'] : ['50%', '50%'],
               data: payload.items,
               label: showDataLabels
                 ? {
                     show: true,
                     color: '#eceef4',
                     fontSize: dataLabelFontSize,
-                    formatter: '{b}: {d}%',
+                    formatter: (p: { name?: string; value?: unknown; percent?: number }) =>
+                      Number(p.value) === 0 ? '' : `${p.name ?? ''}: ${p.percent ?? 0}%`,
                   }
                 : { show: false },
               itemStyle: {
@@ -255,6 +264,7 @@ export const EChartBox = forwardRef<EChartBoxHandle, EChartBoxProps>(function EC
     }
 
     if (payload.kind === 'stacked-bar') {
+      const showLegend = displayOptions?.showLegend !== false;
       const autoRotate = payload.xLabels.length > 6 ? 35 : 0;
       const rotate =
         displayOptions?.rotateLabels === false
@@ -272,12 +282,13 @@ export const EChartBox = forwardRef<EChartBoxHandle, EChartBoxProps>(function EC
           color: palette,
           tooltip: { ...baseTooltip, trigger: 'axis', axisPointer: { type: 'shadow' } },
           legend: {
+            show: showLegend,
             top: 0,
             type: 'scroll',
             textStyle: { color: '#a1a7b8', fontSize: axisLabelFontSize },
           },
           grid: {
-            top: 28,
+            top: showLegend ? 28 : 14,
             right: 14,
             bottom: rotate > 0 ? 52 : 34,
             left: 14,
@@ -312,7 +323,10 @@ export const EChartBox = forwardRef<EChartBoxHandle, EChartBoxProps>(function EC
                   position: 'inside',
                   color: '#eceef4',
                   fontSize: dataLabelFontSize,
-                  formatter: (p: { value?: unknown }) => formatCompactValue(p.value),
+                  formatter: (p: { value?: unknown }) => {
+                    const num = Number(p.value);
+                    return Number.isFinite(num) && num !== 0 ? formatCompactValue(num) : '';
+                  },
                 }
               : { show: false },
           })),
@@ -398,6 +412,7 @@ export const EChartBox = forwardRef<EChartBoxHandle, EChartBoxProps>(function EC
     }
 
     // basic: line-chart, bar-chart, histogram
+    const showLegend = Boolean(displayOptions?.showLegend);
     const isLine = payload.chartType === 'line-chart';
     const isHist = payload.chartType === 'histogram';
     const labelCount = payload.labels.length;
@@ -415,8 +430,14 @@ export const EChartBox = forwardRef<EChartBoxHandle, EChartBoxProps>(function EC
       {
         animationDuration: 220,
         backgroundColor: 'transparent',
+        legend: {
+          show: showLegend,
+          top: 0,
+          type: 'scroll',
+          textStyle: { color: '#a1a7b8', fontSize: axisLabelFontSize },
+        },
         grid: {
-          top: showDataLabels ? 24 : 14,
+          top: showLegend ? (showDataLabels ? 36 : 28) : (showDataLabels ? 24 : 14),
           right: 14,
           bottom: labelRotate > 0 ? 54 : 34,
           left: 14,
@@ -461,8 +482,13 @@ export const EChartBox = forwardRef<EChartBoxHandle, EChartBoxProps>(function EC
                   position: 'top',
                   color: '#eceef4',
                   fontSize: dataLabelFontSize,
-                  formatter: (p: { value?: unknown }) =>
-                    asPercent ? `${formatCompactValue(p.value)}%` : formatCompactValue(p.value),
+                  formatter: (p: { value?: unknown }) => {
+                    const num = Number(p.value);
+                    if (isHist && Number.isFinite(num) && num === 0) {
+                      return '';
+                    }
+                    return asPercent ? `${formatCompactValue(p.value)}%` : formatCompactValue(p.value);
+                  },
                 }
               : { show: false },
             markLine: showAvgLine

@@ -1286,7 +1286,7 @@ export function computeActivityHeatmap(
   }
   const availableYears = Array.from(yearSet).sort((a, b) => a.localeCompare(b));
   const selectedYear =
-    preferredYear && yearSet.has(preferredYear)
+    preferredYear && /^\d{4}$/.test(preferredYear)
       ? preferredYear
       : availableYears[availableYears.length - 1];
 

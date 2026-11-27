@@ -410,6 +410,9 @@ function extractChartDisplayOptions(rawConfig: Record<string, unknown>): ChartDi
   if (typeof rawConfig.axisLabelFontSize === 'number' && Number.isFinite(rawConfig.axisLabelFontSize)) {
     opts.axisLabelFontSize = rawConfig.axisLabelFontSize;
   }
+  if (typeof rawConfig.showLegend === 'boolean') {
+    opts.showLegend = rawConfig.showLegend;
+  }
   if (typeof rawConfig.sortBy === 'string' && VALID_SORT_MODES.has(rawConfig.sortBy as ChartSortMode)) {
     opts.sortBy = rawConfig.sortBy as ChartSortMode;
   }
