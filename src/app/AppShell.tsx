@@ -13,6 +13,7 @@ import {
   PanelLeftOpen,
   PanelRightClose,
   PanelRightOpen,
+  Save,
   ShieldCheck,
   Table2,
   X,
@@ -26,7 +27,10 @@ import { buildPagesFromTemplate, type CanvasTemplateId } from '../features/canva
 import { HelpPage } from '../features/help/HelpPage';
 import {
   buildExportFileName,
+  clearActiveFileHandle,
+  getActiveFileHandleInfo,
   readTxtFromFileInput,
+  saveDirectToActiveHandleOrFallback,
   saveTxtFile,
   stripTxtExtension,
   tryOpenTxtWithFilePicker,
@@ -82,6 +86,10 @@ export function AppShell() {
   const [isTemplateChooserOpen, setIsTemplateChooserOpen] = useState(false);
   const [confirmNewOpen, setConfirmNewOpen] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [saveFeedback, setSaveFeedback] = useState<string | null>(null);
+  const [linkedFileName, setLinkedFileName] = useState<string | null>(
+    () => getActiveFileHandleInfo()?.fileName ?? null,
+  );
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const shellBodyRef = useRef<HTMLElement | null>(null);
@@ -258,7 +266,10 @@ export function AppShell() {
     }
     if (pendingImport.parsed.kind === 'project') {
       dispatch({ type: 'REPLACE_PROJECT', project: pendingImport.parsed.project });
+      setLinkedFileName(getActiveFileHandleInfo()?.fileName ?? null);
     } else {
+      clearActiveFileHandle();
+      setLinkedFileName(null);
       dispatch({
         type: 'REPLACE_DATASET',
         dataset: pendingImport.parsed.dataset,
@@ -269,6 +280,28 @@ export function AppShell() {
     setIsSourceOpen(true);
     navigateTo('workspace');
   };
+
+  const handleSaveDirect = useCallback(async () => {
+    setActionError(null);
+    const txtContent = serializeProjectTxt(project);
+    const fileName = buildExportFileName(project.name);
+    const result = await saveDirectToActiveHandleOrFallback(fileName, txtContent);
+    if (result.status === 'error') {
+      setActionError(result.message);
+      return;
+    }
+    if (result.status === 'saved') {
+      dispatch({ type: 'MARK_EXPORTED' });
+      const activeInfo = getActiveFileHandleInfo();
+      setLinkedFileName(activeInfo?.fileName ?? null);
+      setSaveFeedback(
+        result.method === 'direct'
+          ? `Перезаписано файл ${result.fileName ?? fileName}`
+          : `Збережено у ${result.fileName ?? fileName}`,
+      );
+      window.setTimeout(() => setSaveFeedback(null), 2600);
+    }
+  }, [dispatch, project]);
 
   const handleExportTxt = async () => {
     setActionError(null);
@@ -281,8 +314,20 @@ export function AppShell() {
     }
     if (result.status === 'saved') {
       dispatch({ type: 'MARK_EXPORTED' });
+      setLinkedFileName(getActiveFileHandleInfo()?.fileName ?? null);
     }
   };
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && event.code === 'KeyS') {
+        event.preventDefault();
+        void handleSaveDirect();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown, { capture: true });
+    return () => window.removeEventListener('keydown', onKeyDown, { capture: true });
+  }, [handleSaveDirect]);
 
   const handleNewProjectClick = () => {
     const hasData =
@@ -292,6 +337,8 @@ export function AppShell() {
     if (hasData) {
       setConfirmNewOpen(true);
     } else {
+      clearActiveFileHandle();
+      setLinkedFileName(null);
       resetSessionProject();
       navigateTo('workspace');
     }
@@ -410,11 +457,25 @@ export function AppShell() {
           <button
             type="button"
             className="icon-btn icon-btn--outlined"
+            onClick={() => void handleSaveDirect()}
+            title={
+              linkedFileName
+                ? `Зберегти напряму у ${linkedFileName} (Ctrl+S)`
+                : 'Зберегти у TXT (Ctrl+S)'
+            }
+          >
+            <Save size={14} />
+            <span>{linkedFileName ? 'Зберегти' : 'Зберегти (Ctrl+S)'}</span>
+          </button>
+
+          <button
+            type="button"
+            className="icon-btn icon-btn--outlined"
             onClick={handleExportTxt}
             title={uk.header.exportTxt}
           >
             <FileDown size={14} />
-            <span>{uk.header.exportTxt}</span>
+            <span className="desktop-only">{uk.header.exportTxt}</span>
           </button>
 
           <button
@@ -429,6 +490,15 @@ export function AppShell() {
           </button>
         </div>
       </header>
+
+      {saveFeedback && (
+        <div role="status" className="session-banner session-banner--info">
+          <span className="session-banner-content">
+            <Save size={14} aria-hidden="true" />
+            <span>{saveFeedback}</span>
+          </span>
+        </div>
+      )}
 
       {actionError && (
         <div role="alert" className="session-banner session-banner--danger">
@@ -646,6 +716,8 @@ export function AppShell() {
                 type="button"
                 className="btn btn--danger"
                 onClick={() => {
+                  clearActiveFileHandle();
+                  setLinkedFileName(null);
                   resetSessionProject();
                   setConfirmNewOpen(false);
                   navigateTo('workspace');

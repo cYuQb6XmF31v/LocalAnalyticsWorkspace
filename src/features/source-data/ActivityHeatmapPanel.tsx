@@ -1,15 +1,17 @@
 import { lazy, Suspense, useRef, useState } from 'react';
 import { CalendarDays, ChevronDown, ChevronRight } from 'lucide-react';
 import { useProject } from '../../app/ProjectContext';
+import type { Dataset } from '../../domain/models';
+import { evaluateDatasetFormulas } from './formulaEngine';
 import { computeActivityHeatmap } from '../visualizations/transforms';
 import './ActivityHeatmapPanel.css';
 
 const LazyHeatmapBox = lazy(() => import('../visualizations/EChartHeatmapBox'));
 const LEGEND_SWATCHES = ['#141720', '#2d235a', '#493594', '#6648cc', '#7c5cff', '#b49eff'];
 
-export function ActivityHeatmapPanel() {
+export function ActivityHeatmapPanel({ dataset: datasetProp }: { dataset?: Dataset }) {
   const { state } = useProject();
-  const dataset = state.project.primaryDataset;
+  const dataset = evaluateDatasetFormulas(datasetProp ?? state.project.primaryDataset);
   const dateColumns = dataset.columns.filter((col) => col.type === 'date');
 
   const [isExpanded, setIsExpanded] = useState(false);

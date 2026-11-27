@@ -1,4 +1,4 @@
-import { lazy, Suspense, useMemo } from 'react';
+import { lazy, Suspense, useMemo, useState } from 'react';
 import { ArrowLeft, Share2 } from 'lucide-react';
 import { useProject } from '../../app/ProjectContext';
 import {
@@ -15,7 +15,11 @@ interface GraphViewPageProps {
 
 export function GraphViewPage({ onBackToWorkspace }: GraphViewPageProps) {
   const { state, dispatch } = useProject();
-  const graph = useMemo(() => computeProjectGraph(state.project), [state.project]);
+  const [includeLineage, setIncludeLineage] = useState(true);
+  const graph = useMemo(
+    () => computeProjectGraph(state.project, { includeDataLineage: includeLineage }),
+    [state.project, includeLineage],
+  );
 
   const handleSelectNode = (node: ProjectGraphNode) => {
     if (node.kind === 'page' && node.pageId) {
@@ -61,6 +65,33 @@ export function GraphViewPage({ onBackToWorkspace }: GraphViewPageProps) {
             <span className="graph-dot" style={{ backgroundColor: '#38bdf8' }} />
             Елементи
           </span>
+          {includeLineage && (
+            <>
+              <span>
+                <span className="graph-dot" style={{ backgroundColor: '#34d399' }} />
+                Таблиці
+              </span>
+              <span>
+                <span className="graph-dot" style={{ backgroundColor: '#94a3b8' }} />
+                Колонки/fx
+              </span>
+              <span>
+                <span className="graph-dot" style={{ backgroundColor: '#fbbf24' }} />
+                Joins
+              </span>
+              <span>
+                <span className="graph-dot" style={{ backgroundColor: '#fb7185' }} />
+                Фільтри
+              </span>
+            </>
+          )}
+          <button
+            type="button"
+            className={`icon-btn icon-btn--outlined ${includeLineage ? 'icon-btn--active' : ''}`}
+            onClick={() => setIncludeLineage((prev) => !prev)}
+          >
+            <span>{includeLineage ? 'Data Lineage: Увімк.' : 'Data Lineage: Вимк.'}</span>
+          </button>
           <button type="button" className="btn btn--secondary" onClick={onBackToWorkspace}>
             <ArrowLeft size={14} />
             <span>До Canvas</span>

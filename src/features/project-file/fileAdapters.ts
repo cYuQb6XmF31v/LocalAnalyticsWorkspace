@@ -1,6 +1,7 @@
 export interface PickedTxtFile {
   fileName: string;
   content: string;
+  hasWriteHandle?: boolean;
 }
 
 export type OpenFileResult =
@@ -9,7 +10,7 @@ export type OpenFileResult =
   | { status: 'error'; message: string };
 
 export type SaveFileResult =
-  | { status: 'saved'; method: 'picker' | 'download' }
+  | { status: 'saved'; method: 'picker' | 'direct' | 'download'; fileName?: string }
   | { status: 'cancelled' }
   | { status: 'error'; message: string };
 
@@ -18,9 +19,28 @@ interface FileSystemWritableStreamLike {
   close: () => Promise<void>;
 }
 
+interface FileSystemPermissionDescriptorLike {
+  mode?: 'read' | 'readwrite';
+}
+
 interface FileSystemFileHandleLike {
+  name?: string;
   getFile: () => Promise<File>;
   createWritable: () => Promise<FileSystemWritableStreamLike>;
+  queryPermission?: (desc?: FileSystemPermissionDescriptorLike) => Promise<'granted' | 'denied' | 'prompt'>;
+  requestPermission?: (desc?: FileSystemPermissionDescriptorLike) => Promise<'granted' | 'denied' | 'prompt'>;
+}
+
+let activeFileHandle: FileSystemFileHandleLike | null = null;
+let activeFileName: string | null = null;
+
+export function getActiveFileHandleInfo(): { fileName: string } | null {
+  return activeFileHandle ? { fileName: activeFileName || activeFileHandle.name || 'project.txt' } : null;
+}
+
+export function clearActiveFileHandle(): void {
+  activeFileHandle = null;
+  activeFileName = null;
 }
 
 interface WindowWithFilePickers extends Window {
@@ -92,8 +112,21 @@ export async function tryOpenTxtWithFilePicker(): Promise<OpenFileResult | null>
     if (!handles || handles.length === 0) {
       return { status: 'cancelled' };
     }
-    const file = await handles[0].getFile();
-    return await readTxtFromFileInput(file);
+    const handle = handles[0];
+    const file = await handle.getFile();
+    const res = await readTxtFromFileInput(file);
+    if (res.status === 'picked') {
+      activeFileHandle = handle;
+      activeFileName = file.name;
+      return {
+        status: 'picked',
+        file: {
+          ...res.file,
+          hasWriteHandle: true,
+        },
+      };
+    }
+    return res;
   } catch (error) {
     if (isAbortError(error)) {
       return { status: 'cancelled' };
@@ -125,7 +158,8 @@ export function exportTxtViaBlobDownload(fileName: string, content: string): Sav
 }
 
 /**
- * Exports TXT using showSaveFilePicker when supported, falling back to Blob download.
+ * Exports TXT using showSaveFilePicker when supported (and retains the handle for quick Ctrl+S),
+ * falling back to Blob download.
  */
 export async function saveTxtFile(fileName: string, content: string): Promise<SaveFileResult> {
   const win = window as WindowWithFilePickers;
@@ -143,7 +177,9 @@ export async function saveTxtFile(fileName: string, content: string): Promise<Sa
       const writable = await handle.createWritable();
       await writable.write(content);
       await writable.close();
-      return { status: 'saved', method: 'picker' };
+      activeFileHandle = handle;
+      activeFileName = handle.name || fileName;
+      return { status: 'saved', method: 'picker', fileName: activeFileName };
     } catch (error) {
       if (isAbortError(error)) {
         return { status: 'cancelled' };
@@ -153,4 +189,40 @@ export async function saveTxtFile(fileName: string, content: string): Promise<Sa
   }
 
   return exportTxtViaBlobDownload(fileName, content);
+}
+
+/**
+ * Overwrites the previously opened/saved FileSystemFileHandle directly in one click (Ctrl+S),
+ * falling back cleanly to saveTxtFile() if no handle exists or permission was revoked.
+ */
+export async function saveDirectToActiveHandleOrFallback(
+  suggestedFileName: string,
+  content: string,
+): Promise<SaveFileResult> {
+  if (activeFileHandle) {
+    try {
+      if (typeof activeFileHandle.queryPermission === 'function') {
+        const perm = await activeFileHandle.queryPermission({ mode: 'readwrite' });
+        if (perm !== 'granted' && typeof activeFileHandle.requestPermission === 'function') {
+          const req = await activeFileHandle.requestPermission({ mode: 'readwrite' });
+          if (req !== 'granted') {
+            throw new Error('Permission denied');
+          }
+        }
+      }
+      const writable = await activeFileHandle.createWritable();
+      await writable.write(content);
+      await writable.close();
+      return {
+        status: 'saved',
+        method: 'direct',
+        fileName: activeFileName || suggestedFileName,
+      };
+    } catch {
+      // Handle revoked or unsupported — clear stale handle and fall back cleanly
+      clearActiveFileHandle();
+    }
+  }
+
+  return saveTxtFile(suggestedFileName, content);
 }

@@ -1,18 +1,18 @@
 import type { NodeProps } from '@xyflow/react';
 import { AlertTriangle, Hash } from 'lucide-react';
-import { useProject } from '../../../app/ProjectContext';
 import type { KpiCanvasElement } from '../../../domain/models';
+import { useElementDataset } from '../../source-data/useElementDataset';
 import { SparklineBox } from '../../visualizations/SparklineBox';
 import { computeKpiResult, computeKpiSparkline } from '../../visualizations/transforms';
 import { ElementFrame, type CanvasFlowNode } from './ElementFrame';
 
 export function KpiNode({ data, selected }: NodeProps<CanvasFlowNode>) {
-  const { state } = useProject();
   const element = data.element as KpiCanvasElement;
-  const result = computeKpiResult(state.project.primaryDataset, element.config);
+  const dataset = useElementDataset(data.pageId, element);
+  const result = computeKpiResult(dataset, element.config);
   const sparkline =
     result.status === 'ok'
-      ? computeKpiSparkline(state.project.primaryDataset, element.config)
+      ? computeKpiSparkline(dataset, element.config)
       : null;
 
   return (

@@ -5,13 +5,18 @@ import type {
   CanvasElementType,
   CanvasPage,
   CellValue,
+  ChartDisplayOptions,
+  ChartSortMode,
   Column,
   ColumnType,
   Dataset,
+  DatasetJoin,
   ElementLink,
   Position,
   Project,
+  ProjectFilter,
   Row,
+  SavedCanvasTemplate,
   Size,
   Viewport,
 } from '../../domain/models';
@@ -383,6 +388,52 @@ function parseAgg(rawAgg: unknown, fallback: 'sum' | 'count' = 'sum') {
     : fallback;
 }
 
+const VALID_SORT_MODES = new Set<ChartSortMode>([
+  'none',
+  'label-asc',
+  'label-desc',
+  'value-asc',
+  'value-desc',
+]);
+
+function extractChartDisplayOptions(rawConfig: Record<string, unknown>): ChartDisplayOptions {
+  const opts: ChartDisplayOptions = {};
+  if (typeof rawConfig.showDataLabels === 'boolean') {
+    opts.showDataLabels = rawConfig.showDataLabels;
+  }
+  if (typeof rawConfig.dataLabelFontSize === 'number' && Number.isFinite(rawConfig.dataLabelFontSize)) {
+    opts.dataLabelFontSize = rawConfig.dataLabelFontSize;
+  }
+  if (typeof rawConfig.rotateLabels === 'boolean') {
+    opts.rotateLabels = rawConfig.rotateLabels;
+  }
+  if (typeof rawConfig.axisLabelFontSize === 'number' && Number.isFinite(rawConfig.axisLabelFontSize)) {
+    opts.axisLabelFontSize = rawConfig.axisLabelFontSize;
+  }
+  if (typeof rawConfig.sortBy === 'string' && VALID_SORT_MODES.has(rawConfig.sortBy as ChartSortMode)) {
+    opts.sortBy = rawConfig.sortBy as ChartSortMode;
+  }
+  if (typeof rawConfig.filterText === 'string' && rawConfig.filterText !== '') {
+    opts.filterText = rawConfig.filterText;
+  }
+  if (typeof rawConfig.topN === 'number' && Number.isFinite(rawConfig.topN) && rawConfig.topN > 0) {
+    opts.topN = Math.floor(rawConfig.topN);
+  }
+  if (typeof rawConfig.showAvgLine === 'boolean') {
+    opts.showAvgLine = rawConfig.showAvgLine;
+  }
+  if (typeof rawConfig.cumulative === 'boolean') {
+    opts.cumulative = rawConfig.cumulative;
+  }
+  if (typeof rawConfig.asPercent === 'boolean') {
+    opts.asPercent = rawConfig.asPercent;
+  }
+  if (typeof rawConfig.accentColor === 'string' && rawConfig.accentColor.trim() !== '') {
+    opts.accentColor = rawConfig.accentColor.trim();
+  }
+  return opts;
+}
+
 function normalizeElementConfig(
   elementType: CanvasElementType,
   rawConfig: Record<string, unknown>,
@@ -417,6 +468,7 @@ function normalizeElementConfig(
     const rawX = rawConfig.xFieldId ?? rawConfig.xField;
     const rawY = rawConfig.yFieldId ?? rawConfig.yField;
     return {
+      ...extractChartDisplayOptions(rawConfig),
       title: title || (elementType === 'line-chart' ? 'Лінійний графік' : 'Стовпчиковий графік'),
       xFieldId: resolveFieldReference(rawX, columns),
       yFieldId: resolveFieldReference(rawY, columns),
@@ -442,6 +494,7 @@ function normalizeElementConfig(
         ? Math.max(2, Math.min(30, Math.floor(rawConfig.binCount)))
         : 8;
     return {
+      ...extractChartDisplayOptions(rawConfig),
       title: title || 'Гістограма',
       valueFieldId: resolveFieldReference(rawConfig.valueFieldId, columns),
       binCount: rawBins,
@@ -450,6 +503,7 @@ function normalizeElementConfig(
 
   if (elementType === 'pie-chart') {
     return {
+      ...extractChartDisplayOptions(rawConfig),
       title: title || 'Кругова діаграма',
       categoryFieldId: resolveFieldReference(rawConfig.categoryFieldId, columns),
       valueFieldId: resolveFieldReference(rawConfig.valueFieldId, columns),
@@ -460,6 +514,7 @@ function normalizeElementConfig(
 
   if (elementType === 'stacked-bar') {
     return {
+      ...extractChartDisplayOptions(rawConfig),
       title: title || 'Складений графік',
       xFieldId: resolveFieldReference(rawConfig.xFieldId, columns),
       seriesFieldId: resolveFieldReference(rawConfig.seriesFieldId, columns),
@@ -470,6 +525,7 @@ function normalizeElementConfig(
 
   if (elementType === 'scatter') {
     return {
+      ...extractChartDisplayOptions(rawConfig),
       title: title || 'Точкова діаграма',
       xFieldId: resolveFieldReference(rawConfig.xFieldId, columns),
       yFieldId: resolveFieldReference(rawConfig.yFieldId, columns),
@@ -585,7 +641,10 @@ function parseFullProjectTxt(lines: string[]): ParsedProjectImport {
   let sawFormatVersion = false;
   const projectUnknownMetadata: string[] = [];
 
-  let dataset: Dataset | null = null;
+  const datasets: Dataset[] = [];
+  const joins: DatasetJoin[] = [];
+  const filters: ProjectFilter[] = [];
+  const savedTemplates: SavedCanvasTemplate[] = [];
   const canvases: CanvasPage[] = [];
 
   let i = 0;
@@ -607,10 +666,10 @@ function parseFullProjectTxt(lines: string[]): ParsedProjectImport {
         const rawVer = trimmed.slice('# Format-Version:'.length).trim();
         const ver = Number(rawVer);
         sawFormatVersion = true;
-        if (!Number.isInteger(ver) || ver !== CURRENT_FORMAT_VERSION) {
+        if (!Number.isInteger(ver) || (ver !== 1 && ver !== 2)) {
           errors.push({
             line: lineNum,
-            message: `Непідтримувана версія формату "${rawVer}". Очікується Format-Version: ${CURRENT_FORMAT_VERSION}.`,
+            message: `Непідтримувана версія формату "${rawVer}". Очікується Format-Version: 1 або 2.`,
           });
         } else {
           formatVersion = ver;
@@ -632,10 +691,10 @@ function parseFullProjectTxt(lines: string[]): ParsedProjectImport {
     }
 
     if (trimmed.startsWith('[DATASET')) {
-      if (dataset !== null) {
-        errors.push({
+      if (datasets.length >= 1 && sawFormatVersion && formatVersion === 1) {
+        warnings.push({
           line: lineNum,
-          message: 'У версії формату 1 підтримується лише одна секція [DATASET].',
+          message: 'Кілька секцій [DATASET] рекомендовано використовувати з Format-Version: 2.',
         });
       }
       const attrs = parseTagAttributes(trimmed, 'DATASET');
@@ -649,9 +708,10 @@ function parseFullProjectTxt(lines: string[]): ParsedProjectImport {
       }
 
       const dsId = attrs.id || createStableId('ds');
-      let dsName = 'Source Data';
+      let dsName = datasets.length === 0 ? 'Source Data' : `Таблиця ${datasets.length + 1}`;
       let columnsLine: { line: number; value: string } | null = null;
       let columnIdsLine: string | undefined;
+      let formulasMap: Record<string, string> = {};
       const dsUnknownMetadata: string[] = [];
 
       const bodyResult = parseDelimitedRecords(lines, i + 1, lines.length, true);
@@ -667,6 +727,18 @@ function parseFullProjectTxt(lines: string[]): ParsedProjectImport {
           columnsLine = { line: dir.line, value: dir.text.slice('# Columns:'.length).trim() };
         } else if (dir.text.startsWith('# Column-Ids:')) {
           columnIdsLine = dir.text.slice('# Column-Ids:'.length).trim();
+        } else if (dir.text.startsWith('# Formulas-JSON:')) {
+          const jsonText = dir.text.slice('# Formulas-JSON:'.length).trim();
+          try {
+            const parsed = JSON.parse(jsonText) as unknown;
+            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+              formulasMap = parsed as Record<string, string>;
+            } else {
+              errors.push({ line: dir.line, message: 'Значення # Formulas-JSON: має бути JSON-об’єктом.' });
+            }
+          } catch {
+            errors.push({ line: dir.line, message: 'Невалідний JSON у директиві # Formulas-JSON:.' });
+          }
         } else {
           dsUnknownMetadata.push(dir.text);
           warnings.push({
@@ -700,7 +772,12 @@ function parseFullProjectTxt(lines: string[]): ParsedProjectImport {
           true,
         );
         errors.push(...colRes.errors);
-        columns = colRes.columns;
+        columns = colRes.columns.map((col) => {
+          const formula = formulasMap[col.id];
+          return typeof formula === 'string' && formula.trim()
+            ? { ...col, formula: formula.trim() }
+            : col;
+        });
       }
 
       if (columns.length === 0 && bodyResult.records.length > 0) {
@@ -715,13 +792,118 @@ function parseFullProjectTxt(lines: string[]): ParsedProjectImport {
           ? buildRowsFromRecords(columns, bodyResult.records, errors, warnings)
           : [];
 
-      dataset = {
+      datasets.push({
         id: dsId,
         name: dsName,
         columns,
         rows,
         ...(dsUnknownMetadata.length > 0 ? { unknownMetadata: dsUnknownMetadata } : {}),
-      };
+      });
+      continue;
+    }
+
+    if (trimmed.startsWith('[JOIN')) {
+      i += 1;
+      let closedJoin = false;
+      while (i < lines.length) {
+        const jTrimmed = lines[i].trim();
+        const jLineNum = i + 1;
+        if (jTrimmed === '') {
+          i += 1;
+          continue;
+        }
+        if (jTrimmed === '[/JOIN]') {
+          closedJoin = true;
+          i += 1;
+          break;
+        }
+        if (jTrimmed.startsWith('# Join-JSON:')) {
+          try {
+            const parsed = JSON.parse(jTrimmed.slice('# Join-JSON:'.length).trim()) as DatasetJoin;
+            if (parsed && parsed.id && parsed.leftDatasetId && parsed.rightDatasetId) {
+              joins.push(parsed);
+            } else {
+              errors.push({ line: jLineNum, message: 'Неповні дані з’єднання у # Join-JSON:.' });
+            }
+          } catch {
+            errors.push({ line: jLineNum, message: 'Невалідний JSON у директиві # Join-JSON:.' });
+          }
+        }
+        i += 1;
+      }
+      if (!closedJoin) {
+        errors.push({ line: lineNum, message: 'Секція [JOIN] не має закриваючого тегу [/JOIN].' });
+      }
+      continue;
+    }
+
+    if (trimmed.startsWith('[FILTER')) {
+      i += 1;
+      let closedFilter = false;
+      while (i < lines.length) {
+        const fTrimmed = lines[i].trim();
+        const fLineNum = i + 1;
+        if (fTrimmed === '') {
+          i += 1;
+          continue;
+        }
+        if (fTrimmed === '[/FILTER]') {
+          closedFilter = true;
+          i += 1;
+          break;
+        }
+        if (fTrimmed.startsWith('# Filter-JSON:')) {
+          try {
+            const parsed = JSON.parse(fTrimmed.slice('# Filter-JSON:'.length).trim()) as ProjectFilter;
+            if (parsed && parsed.id && Array.isArray(parsed.rules)) {
+              filters.push(parsed);
+            } else {
+              errors.push({ line: fLineNum, message: 'Неповні дані фільтра у # Filter-JSON:.' });
+            }
+          } catch {
+            errors.push({ line: fLineNum, message: 'Невалідний JSON у директиві # Filter-JSON:.' });
+          }
+        }
+        i += 1;
+      }
+      if (!closedFilter) {
+        errors.push({ line: lineNum, message: 'Секція [FILTER] не має закриваючого тегу [/FILTER].' });
+      }
+      continue;
+    }
+
+    if (trimmed.startsWith('[TEMPLATE')) {
+      i += 1;
+      let closedTpl = false;
+      while (i < lines.length) {
+        const tTrimmed = lines[i].trim();
+        const tLineNum = i + 1;
+        if (tTrimmed === '') {
+          i += 1;
+          continue;
+        }
+        if (tTrimmed === '[/TEMPLATE]') {
+          closedTpl = true;
+          i += 1;
+          break;
+        }
+        if (tTrimmed.startsWith('# Template-JSON:')) {
+          try {
+            const parsed = JSON.parse(tTrimmed.slice('# Template-JSON:'.length).trim()) as SavedCanvasTemplate;
+            if (parsed && parsed.id && Array.isArray(parsed.pages)) {
+              savedTemplates.push(parsed);
+            } else {
+              errors.push({ line: tLineNum, message: 'Неповні дані шаблону у # Template-JSON:.' });
+            }
+          } catch {
+            errors.push({ line: tLineNum, message: 'Невалідний JSON у директиві # Template-JSON:.' });
+          }
+        }
+        i += 1;
+      }
+      if (!closedTpl) {
+        errors.push({ line: lineNum, message: 'Секція [TEMPLATE] не має закриваючого тегу [/TEMPLATE].' });
+      }
       continue;
     }
 
@@ -739,6 +921,7 @@ function parseFullProjectTxt(lines: string[]): ParsedProjectImport {
       const pageId = attrs.id || createStableId('page');
       let pageName = `Сторінка ${canvases.length + 1}`;
       let viewport: Viewport = { x: 0, y: 0, zoom: 1 };
+      let pageFilterIds: string[] | undefined;
       const elements: CanvasElement[] = [];
       const pageUnknownMetadata: string[] = [];
 
@@ -776,6 +959,15 @@ function parseFullProjectTxt(lines: string[]): ParsedProjectImport {
             } else {
               viewport = { x, y, zoom };
             }
+          } else if (cTrimmed.startsWith('# Filter-Ids-JSON:')) {
+            try {
+              const parsedIds = JSON.parse(cTrimmed.slice('# Filter-Ids-JSON:'.length).trim()) as unknown;
+              if (Array.isArray(parsedIds)) {
+                pageFilterIds = parsedIds.filter((x): x is string => typeof x === 'string');
+              }
+            } catch {
+              errors.push({ line: cLineNum, message: 'Невалідний JSON у директиві # Filter-Ids-JSON:.' });
+            }
           } else {
             pageUnknownMetadata.push(cTrimmed);
             warnings.push({
@@ -810,6 +1002,8 @@ function parseFullProjectTxt(lines: string[]): ParsedProjectImport {
           const itemId = itemAttrs.id || createStableId('el');
           let position: Position = { x: 0, y: 0 };
           let size: Size = { width: 280, height: 180 };
+          let itemDatasetId: string | undefined;
+          let itemFilterIds: string[] | undefined;
           let rawConfig: Record<string, unknown> = {};
           let links: ElementLink[] | undefined;
           const itemUnknownMetadata: string[] = [];
@@ -852,6 +1046,20 @@ function parseFullProjectTxt(lines: string[]): ParsedProjectImport {
                 });
               } else {
                 size = { width, height };
+              }
+            } else if (iTrimmed.startsWith('# Dataset-Id:')) {
+              const dsRef = iTrimmed.slice('# Dataset-Id:'.length).trim();
+              if (dsRef) {
+                itemDatasetId = dsRef;
+              }
+            } else if (iTrimmed.startsWith('# Filter-Ids-JSON:')) {
+              try {
+                const parsedIds = JSON.parse(iTrimmed.slice('# Filter-Ids-JSON:'.length).trim()) as unknown;
+                if (Array.isArray(parsedIds)) {
+                  itemFilterIds = parsedIds.filter((x): x is string => typeof x === 'string');
+                }
+              } catch {
+                errors.push({ line: iLineNum, message: 'Невалідний JSON у директиві # Filter-Ids-JSON:.' });
               }
             } else if (iTrimmed.startsWith('# Config-JSON:')) {
               const jsonText = iTrimmed.slice('# Config-JSON:'.length).trim();
@@ -913,7 +1121,10 @@ function parseFullProjectTxt(lines: string[]): ParsedProjectImport {
 
           if (isKnownType) {
             const elType = rawType as CanvasElementType;
-            const columnsForResolve = dataset?.columns ?? [];
+            const targetDs = itemDatasetId
+              ? datasets.find((d) => d.id === itemDatasetId) ?? datasets[0]
+              : datasets[0];
+            const columnsForResolve = targetDs?.columns ?? [];
             const config = normalizeElementConfig(elType, rawConfig, columnsForResolve);
             elements.push({
               id: itemId,
@@ -921,6 +1132,8 @@ function parseFullProjectTxt(lines: string[]): ParsedProjectImport {
               position,
               size,
               config,
+              ...(itemDatasetId ? { datasetId: itemDatasetId } : {}),
+              ...(itemFilterIds && itemFilterIds.length > 0 ? { filterIds: itemFilterIds } : {}),
               ...(links ? { links } : {}),
               ...(itemUnknownMetadata.length > 0
                 ? { unknownMetadata: itemUnknownMetadata }
@@ -949,6 +1162,7 @@ function parseFullProjectTxt(lines: string[]): ParsedProjectImport {
         name: pageName,
         viewport,
         elements,
+        ...(pageFilterIds && pageFilterIds.length > 0 ? { filterIds: pageFilterIds } : {}),
         ...(pageUnknownMetadata.length > 0 ? { unknownMetadata: pageUnknownMetadata } : {}),
       });
       continue;
@@ -968,7 +1182,7 @@ function parseFullProjectTxt(lines: string[]): ParsedProjectImport {
     });
   }
 
-  if (!dataset) {
+  if (datasets.length === 0) {
     errors.push({
       line: 1,
       message: 'У файлі проєкту відсутня секція [DATASET].',
@@ -985,16 +1199,23 @@ function parseFullProjectTxt(lines: string[]): ParsedProjectImport {
   }
 
   const now = new Date().toISOString();
+  const primaryDataset = datasets[0] ?? {
+    id: createStableId('ds'),
+    name: 'Source Data',
+    columns: [],
+    rows: [],
+  };
+  const secondaryDatasets = datasets.slice(1);
+
   const project: Project = {
     id: createStableId('proj'),
     name: projectName,
     formatVersion,
-    primaryDataset: dataset ?? {
-      id: createStableId('ds'),
-      name: 'Source Data',
-      columns: [],
-      rows: [],
-    },
+    primaryDataset,
+    ...(secondaryDatasets.length > 0 ? { secondaryDatasets } : {}),
+    ...(joins.length > 0 ? { joins } : {}),
+    ...(filters.length > 0 ? { filters } : {}),
+    ...(savedTemplates.length > 0 ? { savedTemplates } : {}),
     canvases,
     metadata: {
       createdAt: now,

@@ -29,6 +29,7 @@ import type {
   ScatterCanvasElement,
   StackedBarCanvasElement,
 } from '../../../domain/models';
+import { useElementDataset } from '../../source-data/useElementDataset';
 import type { EChartBoxHandle, EChartPayload } from '../../visualizations/EChartBox';
 import {
   computeChartSeries,
@@ -309,12 +310,13 @@ const SORT_LABELS: Record<ChartSortMode, string> = {
 };
 
 export function ChartNode({ data, selected }: NodeProps<CanvasFlowNode>) {
-  const { state, dispatch } = useProject();
+  const { dispatch } = useProject();
   const chartRef = useRef<EChartBoxHandle | null>(null);
   const element = data.element as AnyChartElement;
+  const dataset = useElementDataset(data.pageId, element);
   const vm = useMemo(
-    () => buildChartViewModel(state.project.primaryDataset, element),
-    [state.project.primaryDataset, element],
+    () => buildChartViewModel(dataset, element),
+    [dataset, element],
   );
 
   const isAxisChart =

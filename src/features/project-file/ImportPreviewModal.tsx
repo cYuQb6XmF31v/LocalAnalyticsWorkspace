@@ -102,6 +102,26 @@ export function ImportPreviewModal({
               <span className="import-meta-label">{uk.importModal.elementsCount}</span>
               <span className="import-meta-value">{totalElements}</span>
             </div>
+            {(parsed.project.secondaryDatasets?.length ?? 0) > 0 && (
+              <div className="import-meta-card">
+                <span className="import-meta-label">Таблиць даних:</span>
+                <span className="import-meta-value">
+                  {1 + (parsed.project.secondaryDatasets?.length ?? 0)}
+                </span>
+              </div>
+            )}
+            {(parsed.project.joins?.length ?? 0) > 0 && (
+              <div className="import-meta-card">
+                <span className="import-meta-label">З’єднань (Joins):</span>
+                <span className="import-meta-value">{parsed.project.joins?.length}</span>
+              </div>
+            )}
+            {(parsed.project.filters?.length ?? 0) > 0 && (
+              <div className="import-meta-card">
+                <span className="import-meta-label">Фільтрів:</span>
+                <span className="import-meta-value">{parsed.project.filters?.length}</span>
+              </div>
+            )}
           </>
         )}
       </div>

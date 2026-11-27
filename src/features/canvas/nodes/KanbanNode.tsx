@@ -3,18 +3,26 @@ import type { NodeProps } from '@xyflow/react';
 import { AlertTriangle, Columns3 } from 'lucide-react';
 import { useProject } from '../../../app/ProjectContext';
 import type { CellValue, KanbanCanvasElement } from '../../../domain/models';
+import { isJoinDatasetId } from '../../source-data/dataPipeline';
+import { useElementDataset } from '../../source-data/useElementDataset';
 import { computeKanbanColumns } from '../../visualizations/transforms';
 import { ElementFrame, type CanvasFlowNode } from './ElementFrame';
 
 export function KanbanNode({ data, selected }: NodeProps<CanvasFlowNode>) {
-  const { state, dispatch } = useProject();
+  const { dispatch } = useProject();
   const element = data.element as KanbanCanvasElement;
-  const result = computeKanbanColumns(state.project.primaryDataset, element.config);
+  const dataset = useElementDataset(data.pageId, element);
+  const result = computeKanbanColumns(dataset, element.config);
   const [dragOverLane, setDragOverLane] = useState<string | null>(null);
+  const canMutateSource = !isJoinDatasetId(element.datasetId);
 
   const moveCardToLane = (rowId: string, columnId: string, nextValue: CellValue) => {
+    if (!canMutateSource) {
+      return;
+    }
     dispatch({
       type: 'UPDATE_CELL',
+      datasetId: element.datasetId,
       rowId,
       columnId,
       value: nextValue,

@@ -1,14 +1,14 @@
 import type { NodeProps } from '@xyflow/react';
 import { AlertTriangle, Grid3x3 } from 'lucide-react';
-import { useProject } from '../../../app/ProjectContext';
 import type { PivotTableCanvasElement } from '../../../domain/models';
+import { useElementDataset } from '../../source-data/useElementDataset';
 import { computePivotTable, formatMetricNumber } from '../../visualizations/transforms';
 import { ElementFrame, type CanvasFlowNode } from './ElementFrame';
 
 export function PivotTableNode({ data, selected }: NodeProps<CanvasFlowNode>) {
-  const { state } = useProject();
   const element = data.element as PivotTableCanvasElement;
-  const result = computePivotTable(state.project.primaryDataset, element.config);
+  const dataset = useElementDataset(data.pageId, element);
+  const result = computePivotTable(dataset, element.config);
 
   return (
     <ElementFrame

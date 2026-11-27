@@ -9,6 +9,7 @@ import type {
   ElementLink,
   KpiAggregation,
 } from '../../domain/models';
+import { listDatasetOptions, resolveEffectiveDataset } from '../source-data/dataPipeline';
 import './ElementConfigPanel.css';
 
 const CHART_COLOR_PRESETS = [
@@ -226,7 +227,11 @@ function AggregationSelect({
 
 export function ElementConfigPanel({ pageId, element, onClose }: ElementConfigPanelProps) {
   const { state, dispatch } = useProject();
-  const columns = state.project.primaryDataset.columns;
+  const effectiveDataset = resolveEffectiveDataset(state.project, element.datasetId);
+  const columns = effectiveDataset.columns;
+  const datasetOptions = listDatasetOptions(state.project);
+  const allFilters = state.project.filters ?? [];
+  const activeElementFilters = element.filterIds ?? [];
   const pages = state.project.canvases;
 
   const [linkPageId, setLinkPageId] = useState<string>(pages[0]?.id ?? pageId);
@@ -434,6 +439,69 @@ export function ElementConfigPanel({ pageId, element, onClose }: ElementConfigPa
             }
           />
         </div>
+
+        {element.type !== 'note' && (datasetOptions.length > 1 || allFilters.length > 0) && (
+          <>
+            <div className="config-divider" />
+            {datasetOptions.length > 1 && (
+              <div className="config-field">
+                <label className="config-label" htmlFor="cfg-dataset">
+                  Джерело даних (Таблиця / Join)
+                </label>
+                <select
+                  id="cfg-dataset"
+                  className="config-select"
+                  value={element.datasetId ?? state.project.primaryDataset.id}
+                  onChange={(e) =>
+                    dispatch({
+                      type: 'SET_ELEMENT_DATASET',
+                      pageId,
+                      elementId: element.id,
+                      datasetId: e.target.value,
+                    })
+                  }
+                >
+                  {datasetOptions.map((opt) => (
+                    <option key={opt.id} value={opt.id}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {allFilters.length > 0 && (
+              <div className="config-field">
+                <span className="config-label">Підключені фільтри</span>
+                <div className="config-cols-checklist">
+                  {allFilters.map((flt) => {
+                    const checked = activeElementFilters.includes(flt.id);
+                    return (
+                      <label key={flt.id} className="config-check-row">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(e) => {
+                            const nextIds = e.target.checked
+                              ? [...activeElementFilters, flt.id]
+                              : activeElementFilters.filter((id) => id !== flt.id);
+                            dispatch({
+                              type: 'SET_ELEMENT_FILTERS',
+                              pageId,
+                              elementId: element.id,
+                              filterIds: nextIds,
+                            });
+                          }}
+                        />
+                        <span>{flt.name}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </>
+        )}
 
         {element.type === 'note' && (
           <div className="config-field">

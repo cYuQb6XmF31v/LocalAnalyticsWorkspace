@@ -1,14 +1,14 @@
 import type { NodeProps } from '@xyflow/react';
 import { AlertTriangle, Table } from 'lucide-react';
-import { useProject } from '../../../app/ProjectContext';
 import type { TableViewCanvasElement } from '../../../domain/models';
+import { useElementDataset } from '../../source-data/useElementDataset';
 import { computeTableView } from '../../visualizations/transforms';
 import { ElementFrame, type CanvasFlowNode } from './ElementFrame';
 
 export function TableViewNode({ data, selected }: NodeProps<CanvasFlowNode>) {
-  const { state } = useProject();
   const element = data.element as TableViewCanvasElement;
-  const result = computeTableView(state.project.primaryDataset, element.config);
+  const dataset = useElementDataset(data.pageId, element);
+  const result = computeTableView(dataset, element.config);
 
   return (
     <ElementFrame

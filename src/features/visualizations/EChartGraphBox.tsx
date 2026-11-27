@@ -60,6 +60,14 @@ export function EChartGraphBox({ graph, onSelectNode }: EChartGraphBoxProps) {
           return '#7c5cff';
         case 'element':
           return '#38bdf8';
+        case 'dataset':
+          return '#34d399';
+        case 'column':
+          return '#94a3b8';
+        case 'join':
+          return '#fbbf24';
+        case 'filter':
+          return '#fb7185';
       }
     };
 
@@ -67,10 +75,17 @@ export function EChartGraphBox({ graph, onSelectNode }: EChartGraphBoxProps) {
       switch (kind) {
         case 'project':
           return 28;
+        case 'dataset':
+          return 24;
         case 'page':
           return 22;
+        case 'join':
+        case 'filter':
+          return 18;
         case 'element':
           return 15;
+        case 'column':
+          return 12;
       }
     };
 
@@ -88,16 +103,20 @@ export function EChartGraphBox({ graph, onSelectNode }: EChartGraphBoxProps) {
               data?: { name?: string; nodeMeta?: ProjectGraphNode; edgeLabel?: string };
             };
             if (p.dataType === 'node' && p.data?.nodeMeta) {
-              const kindLabel =
-                p.data.nodeMeta.kind === 'project'
-                  ? 'Проєкт'
-                  : p.data.nodeMeta.kind === 'page'
-                    ? 'Сторінка Canvas'
-                    : 'Елемент Canvas';
+              const kindMap: Record<ProjectGraphNode['kind'], string> = {
+                project: 'Проєкт',
+                page: 'Сторінка Canvas',
+                element: 'Елемент Canvas',
+                dataset: 'Таблиця даних',
+                column: 'Колонка / Формула',
+                join: 'З’єднання (Join)',
+                filter: 'Фільтр',
+              };
+              const kindLabel = kindMap[p.data.nodeMeta.kind];
               return `${kindLabel}: <b>${p.data.nodeMeta.label}</b>`;
             }
             if (p.dataType === 'edge' && p.data?.edgeLabel) {
-              return `Посилання: ${p.data.edgeLabel}`;
+              return `Зв’язок: ${p.data.edgeLabel}`;
             }
             return '';
           },
@@ -145,11 +164,17 @@ export function EChartGraphBox({ graph, onSelectNode }: EChartGraphBoxProps) {
                       curveness: 0.18,
                       opacity: 0.95,
                     }
-                  : {
-                      color: 'rgba(255, 255, 255, 0.22)',
-                      width: 1.2,
-                      curveness: 0.05,
-                    },
+                  : edge.kind === 'lineage'
+                    ? {
+                        color: 'rgba(52, 211, 153, 0.45)',
+                        width: 1.4,
+                        curveness: 0.12,
+                      }
+                    : {
+                        color: 'rgba(255, 255, 255, 0.22)',
+                        width: 1.2,
+                        curveness: 0.05,
+                      },
             })),
           },
         ],

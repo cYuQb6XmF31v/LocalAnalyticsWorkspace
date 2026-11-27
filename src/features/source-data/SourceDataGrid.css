@@ -5,6 +5,60 @@
   min-height: 0;
 }
 
+.sd-dataset-bar {
+  flex-shrink: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 5px var(--space-3);
+  border-bottom: 1px solid var(--border-subtle);
+  background-color: var(--bg-surface);
+}
+
+.sd-dataset-select-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+}
+
+.sd-fx-btn--active {
+  color: var(--accent-text) !important;
+  background-color: var(--accent-muted) !important;
+}
+
+.sd-formula-error {
+  padding: 4px var(--space-3);
+  font-size: 11px;
+  color: var(--status-danger);
+  background-color: rgba(239, 68, 68, 0.1);
+}
+
+.sd-cell-formula-td {
+  background-color: rgba(124, 92, 255, 0.04) !important;
+}
+
+.sd-cell-formula {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 24px;
+  padding: 0 7px;
+  font-size: 11.5px;
+  font-style: italic;
+  color: var(--accent-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sd-cell-formula.sd-cell-input--number {
+  justify-content: flex-end;
+}
+
 .sd-toolbar {
   flex-shrink: 0;
   display: flex;

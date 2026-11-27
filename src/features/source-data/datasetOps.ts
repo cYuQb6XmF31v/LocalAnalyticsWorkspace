@@ -13,6 +13,7 @@ export interface AddColumnInput {
   name: string;
   type?: ColumnType;
   displayFormat?: string;
+  formula?: string;
   insertAt?: number;
 }
 
@@ -41,6 +42,9 @@ export function addColumn(dataset: Dataset, input: AddColumnInput): Dataset {
     name: columnName,
     type: input.type ?? 'text',
     ...(input.displayFormat ? { displayFormat: input.displayFormat } : {}),
+    ...(input.formula !== undefined && input.formula.trim() !== ''
+      ? { formula: input.formula.trim() }
+      : {}),
   };
 
   const insertIndex =
@@ -104,6 +108,36 @@ export function changeColumnType(dataset: Dataset, columnId: string, newType: Co
   });
 
   // Intentionally preserve raw row values so changing types never silently corrupts user data.
+  return changed ? { ...dataset, columns: nextColumns } : dataset;
+}
+
+export function setColumnFormula(
+  dataset: Dataset,
+  columnId: string,
+  formula: string | undefined,
+): Dataset {
+  const trimmed = formula?.trim();
+  let changed = false;
+  const nextColumns = dataset.columns.map((col) => {
+    if (col.id !== columnId) {
+      return col;
+    }
+    const prevFormula = col.formula?.trim();
+    if (!trimmed) {
+      if (!prevFormula) {
+        return col;
+      }
+      changed = true;
+      const { formula: _removed, ...rest } = col;
+      return rest;
+    }
+    if (prevFormula === trimmed) {
+      return col;
+    }
+    changed = true;
+    return { ...col, formula: trimmed };
+  });
+
   return changed ? { ...dataset, columns: nextColumns } : dataset;
 }
 

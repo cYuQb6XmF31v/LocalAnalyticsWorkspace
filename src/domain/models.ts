@@ -7,6 +7,8 @@ export interface Column {
   name: string;
   type: ColumnType;
   displayFormat?: string;
+  /** Optional safe expression for computed/derived columns (e.g. "[amount] * 1.2"). */
+  formula?: string;
 }
 
 export interface Row {
@@ -20,6 +22,53 @@ export interface Dataset {
   columns: Column[];
   rows: Row[];
   unknownMetadata?: string[];
+}
+
+export type JoinType = 'left' | 'inner';
+
+export interface DatasetJoin {
+  id: string;
+  name: string;
+  leftDatasetId: string;
+  rightDatasetId: string;
+  leftKeyColumnId: string;
+  rightKeyColumnId: string;
+  joinType: JoinType;
+}
+
+export type FilterOperator =
+  | 'equals'
+  | 'not-equals'
+  | 'contains'
+  | 'gt'
+  | 'gte'
+  | 'lt'
+  | 'lte'
+  | 'between'
+  | 'in';
+
+export interface FilterRule {
+  id: string;
+  columnId: string;
+  operator: FilterOperator;
+  value: string;
+  valueTo?: string;
+  values?: string[];
+}
+
+export interface ProjectFilter {
+  id: string;
+  name: string;
+  datasetId?: string;
+  rules: FilterRule[];
+}
+
+export interface SavedCanvasTemplate {
+  id: string;
+  name: string;
+  description?: string;
+  createdAt: string;
+  pages: CanvasPage[];
 }
 
 export interface Viewport {
@@ -165,6 +214,10 @@ export interface CanvasElementBase<TType extends CanvasElementType, TConfig exte
   position: Position;
   size: Size;
   config: TConfig;
+  /** Optional dataset ID or 'join:<joinId>' overriding the project primaryDataset. */
+  datasetId?: string;
+  /** Optional reusable ProjectFilter IDs applied to this element. */
+  filterIds?: string[];
   links?: ElementLink[];
   unknownMetadata?: string[];
 }
@@ -199,6 +252,8 @@ export interface CanvasPage {
   name: string;
   viewport: Viewport;
   elements: CanvasElement[];
+  /** Optional reusable ProjectFilter IDs applied to all elements on this page. */
+  filterIds?: string[];
   unknownMetadata?: string[];
 }
 
@@ -213,6 +268,10 @@ export interface Project {
   name: string;
   formatVersion: number;
   primaryDataset: Dataset;
+  secondaryDatasets?: Dataset[];
+  joins?: DatasetJoin[];
+  filters?: ProjectFilter[];
+  savedTemplates?: SavedCanvasTemplate[];
   canvases: CanvasPage[];
   metadata: ProjectMetadata;
 }

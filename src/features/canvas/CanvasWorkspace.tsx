@@ -19,6 +19,7 @@ import {
   Copy,
   Crosshair,
   FilePlus,
+  Filter,
   Grid3x3,
   Hash,
   Keyboard,
@@ -31,6 +32,7 @@ import {
   RotateCcw,
   ScatterChart,
   Settings2,
+  SlidersHorizontal,
   StickyNote,
   Table,
   Trash2,
@@ -43,6 +45,7 @@ import type { CanvasElement, CanvasElementType, Dataset, Position } from '../../
 import { uk } from '../../i18n/uk';
 import { CanvasSnapContext, type ResizeRect } from './canvasSnapContext';
 import { ElementConfigPanel } from './ElementConfigPanel';
+import { FiltersModal } from './FiltersModal';
 import { ChartNode } from './nodes/ChartNode';
 import type { CanvasFlowNode } from './nodes/ElementFrame';
 import { KanbanNode } from './nodes/KanbanNode';
@@ -565,9 +568,12 @@ function CanvasInner({ onOpenTemplates }: CanvasWorkspaceProps) {
   const [tabRenameDraft, setTabRenameDraft] = useState('');
   const [openToolbarMenu, setOpenToolbarMenu] = useState<'charts' | 'tables' | null>(null);
   const [showHotkeysHint, setShowHotkeysHint] = useState(true);
+  const [autoConfigOnHover, setAutoConfigOnHover] = useState(true);
+  const [isFiltersOpen, setIsFiltersOpen] = useState(false);
 
   const surfaceRef = useRef<HTMLDivElement | null>(null);
   const toolbarMenuRef = useRef<HTMLDivElement | null>(null);
+  const hoverConfigTimerRef = useRef<number | null>(null);
   const snappedPosRef = useRef<Record<string, Position>>({});
   const snappedResizeRef = useRef<Record<string, ResizeRect>>({});
   const lastFocusedSelectionRef = useRef<string | null>(null);
@@ -1276,6 +1282,37 @@ function CanvasInner({ onOpenTemplates }: CanvasWorkspaceProps) {
           </button>
           <button
             type="button"
+            className={`icon-btn icon-btn--outlined ${(activePage.filterIds?.length ?? 0) > 0 ? 'icon-btn--active' : ''}`}
+            onClick={() => setIsFiltersOpen(true)}
+            title="Багаторазові фільтри проєкту та сторінки"
+          >
+            <Filter size={13} />
+            <span>
+              Фільтри
+              {(activePage.filterIds?.length ?? 0) > 0 ? ` (${activePage.filterIds!.length})` : ''}
+            </span>
+          </button>
+          <button
+            type="button"
+            className={`icon-btn icon-btn--outlined ${autoConfigOnHover ? 'icon-btn--active' : ''}`}
+            onClick={() => {
+              setAutoConfigOnHover((prev) => !prev);
+              if (hoverConfigTimerRef.current) {
+                window.clearTimeout(hoverConfigTimerRef.current);
+                hoverConfigTimerRef.current = null;
+              }
+            }}
+            title={
+              autoConfigOnHover
+                ? 'Авто-відкриття властивостей при наведенні увімкнено (клік щоб вимкнути)'
+                : 'Авто-відкриття властивостей при наведенні вимкнено (клік щоб увімкнути)'
+            }
+          >
+            <SlidersHorizontal size={13} />
+            <span>Авто-налашт.</span>
+          </button>
+          <button
+            type="button"
             className={`icon-btn icon-btn--outlined ${snapEnabled ? 'icon-btn--active' : ''}`}
             onClick={() => setSnapEnabled((prev) => !prev)}
             title={
@@ -1393,6 +1430,24 @@ function CanvasInner({ onOpenTemplates }: CanvasWorkspaceProps) {
             });
           }}
           onNodeDrag={handleNodeDrag}
+          onNodeMouseEnter={(_event, node) => {
+            if (!autoConfigOnHover) {
+              return;
+            }
+            if (hoverConfigTimerRef.current) {
+              window.clearTimeout(hoverConfigTimerRef.current);
+            }
+            hoverConfigTimerRef.current = window.setTimeout(() => {
+              setConfigElementId(node.id);
+              hoverConfigTimerRef.current = null;
+            }, 160);
+          }}
+          onNodeMouseLeave={() => {
+            if (hoverConfigTimerRef.current) {
+              window.clearTimeout(hoverConfigTimerRef.current);
+              hoverConfigTimerRef.current = null;
+            }
+          }}
           onNodeDragStop={(_event, node, draggedNodes) => {
             const snappedMain = snappedPosRef.current[node.id];
             delete snappedPosRef.current[node.id];
@@ -1586,6 +1641,10 @@ function CanvasInner({ onOpenTemplates }: CanvasWorkspaceProps) {
             element={configElement}
             onClose={() => setConfigElementId(null)}
           />
+        )}
+
+        {isFiltersOpen && (
+          <FiltersModal pageId={activePage.id} onClose={() => setIsFiltersOpen(false)} />
         )}
       </div>
 

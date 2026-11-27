@@ -1,18 +1,26 @@
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
   ArrowRight,
   FileUp,
+  FunctionSquare,
+  GitMerge,
   Plus,
   Table2,
   Trash2,
 } from 'lucide-react';
 import { useProject } from '../../app/ProjectContext';
 import { Modal } from '../../components/Modal';
+import { createStableId } from '../../domain/id';
 import type { Column, ColumnType } from '../../domain/models';
 import { uk } from '../../i18n/uk';
-import { findColumnReferences, type ColumnReference } from './datasetOps';
+import { readTxtFromFileInput, stripTxtExtension } from '../project-file/fileAdapters';
+import { parseTxtContent } from '../project-file/txtParser';
 import { ActivityHeatmapPanel } from './ActivityHeatmapPanel';
+import { getAllProjectDatasets } from './dataPipeline';
+import { findColumnReferences, type ColumnReference } from './datasetOps';
+import { evaluateDatasetFormulas, validateFormula } from './formulaEngine';
+import { JoinsModal } from './JoinsModal';
 import {
   cellValueToInputString,
   SUPPORTED_COLUMN_TYPES,
@@ -33,14 +41,31 @@ const DEFAULT_COL_WIDTH = 152;
 
 export function SourceDataGrid({ onRequestImportTxt }: SourceDataGridProps) {
   const { state, dispatch } = useProject();
-  const dataset = state.project.primaryDataset;
+  const allDatasets = getAllProjectDatasets(state.project);
+  const [activeDatasetId, setActiveDatasetId] = useState<string>(state.project.primaryDataset.id);
+  const dataset =
+    allDatasets.find((d) => d.id === activeDatasetId) ?? state.project.primaryDataset;
+  const isPrimaryDataset = dataset.id === state.project.primaryDataset.id;
+  const evaluatedDataset = useMemo(() => evaluateDatasetFormulas(dataset), [dataset]);
 
   const [isAddingCol, setIsAddingCol] = useState(false);
   const [newColName, setNewColName] = useState('');
-  const [newColType, setNewColType] = useState<ColumnType>('text');
+  const [newColType, setNewColType] = useState<ColumnType>('number');
+  const [newColUseFormula, setNewColUseFormula] = useState(false);
+  const [newColFormula, setNewColFormula] = useState('');
+  const [editingFormulaColId, setEditingFormulaColId] = useState<string | null>(null);
+  const [formulaDraft, setFormulaDraft] = useState('');
+  const [isJoinsOpen, setIsJoinsOpen] = useState(false);
+  const [secondaryImportError, setSecondaryImportError] = useState<string | null>(null);
+  const secondaryFileRef = useRef<HTMLInputElement | null>(null);
   const [pendingDelete, setPendingDelete] = useState<PendingColumnDelete | null>(null);
   const [colWidths, setColWidths] = useState<Record<string, number>>({});
   const colResizeRef = useRef<{ colId: string; startX: number; startWidth: number } | null>(null);
+
+  const newFormulaCheck = newColUseFormula ? validateFormula(newColFormula) : null;
+  const editFormulaValidation = editingFormulaColId
+    ? validateFormula(formulaDraft)
+    : null;
 
   const handleColResizeStart = (colId: string, event: React.PointerEvent<HTMLDivElement>) => {
     event.preventDefault();
@@ -74,17 +99,64 @@ export function SourceDataGrid({ onRequestImportTxt }: SourceDataGridProps) {
 
   const handleCreateColumn = (event: React.FormEvent) => {
     event.preventDefault();
+    if (newColUseFormula && newFormulaCheck && !newFormulaCheck.valid) {
+      return;
+    }
     const trimmed = newColName.trim();
     dispatch({
       type: 'ADD_COLUMN',
+      datasetId: dataset.id,
       input: {
         name: trimmed || `Колонка ${dataset.columns.length + 1}`,
         type: newColType,
+        ...(newColUseFormula && newColFormula.trim() ? { formula: newColFormula.trim() } : {}),
       },
     });
     setNewColName('');
-    setNewColType('text');
+    setNewColType('number');
+    setNewColUseFormula(false);
+    setNewColFormula('');
     setIsAddingCol(false);
+  };
+
+  const handleAddSecondaryTable = () => {
+    const newDsId = createStableId('ds');
+    dispatch({
+      type: 'ADD_SECONDARY_DATASET',
+      dataset: {
+        id: newDsId,
+        name: `Додаткова таблиця ${allDatasets.length + 1}`,
+        columns: [
+          { id: createStableId('col'), name: 'key', type: 'text' },
+          { id: createStableId('col'), name: 'value', type: 'number' },
+        ],
+        rows: [],
+      },
+    });
+    setActiveDatasetId(newDsId);
+  };
+
+  const handleSecondaryTxtPicked = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    setSecondaryImportError(null);
+    if (!file) return;
+    const read = await readTxtFromFileInput(file);
+    if (read.status !== 'picked') {
+      if (read.status === 'error') setSecondaryImportError(read.message);
+      return;
+    }
+    const parsed = parseTxtContent(read.file.content, stripTxtExtension(read.file.fileName));
+    if (parsed.errors.length > 0) {
+      setSecondaryImportError(parsed.errors[0].message);
+      return;
+    }
+    const importedDs =
+      parsed.kind === 'dataset'
+        ? parsed.dataset
+        : { ...parsed.project.primaryDataset, id: createStableId('ds') };
+    dispatch({ type: 'ADD_SECONDARY_DATASET', dataset: importedDs });
+    setActiveDatasetId(importedDs.id);
   };
 
   const handleRequestDeleteColumn = (column: Column) => {
@@ -93,19 +165,102 @@ export function SourceDataGrid({ onRequestImportTxt }: SourceDataGridProps) {
       setPendingDelete({ column, references });
       return;
     }
-    dispatch({ type: 'DELETE_COLUMN', columnId: column.id });
+    dispatch({ type: 'DELETE_COLUMN', datasetId: dataset.id, columnId: column.id });
   };
 
   const confirmDeleteColumn = () => {
     if (!pendingDelete) {
       return;
     }
-    dispatch({ type: 'DELETE_COLUMN', columnId: pendingDelete.column.id });
+    dispatch({ type: 'DELETE_COLUMN', datasetId: dataset.id, columnId: pendingDelete.column.id });
     setPendingDelete(null);
   };
 
   return (
     <div className="sd-root">
+      <input
+        ref={secondaryFileRef}
+        type="file"
+        accept=".txt,text/plain"
+        hidden
+        onChange={handleSecondaryTxtPicked}
+      />
+
+      <div className="sd-dataset-bar">
+        <div className="sd-dataset-select-wrap">
+          <select
+            className="sd-select"
+            aria-label="Активна таблиця даних"
+            value={dataset.id}
+            onChange={(e) => {
+              setActiveDatasetId(e.target.value);
+              setEditingFormulaColId(null);
+            }}
+          >
+            {allDatasets.map((ds, idx) => (
+              <option key={ds.id} value={ds.id}>
+                {idx === 0 ? `★ ${ds.name}` : ds.name} ({ds.rows.length})
+              </option>
+            ))}
+          </select>
+          {!isPrimaryDataset && (
+            <button
+              type="button"
+              className="sd-mini-btn sd-mini-btn--danger"
+              title="Видалити додаткову таблицю"
+              aria-label="Видалити додаткову таблицю"
+              onClick={() => {
+                dispatch({ type: 'DELETE_SECONDARY_DATASET', datasetId: dataset.id });
+                setActiveDatasetId(state.project.primaryDataset.id);
+              }}
+            >
+              <Trash2 size={12} />
+            </button>
+          )}
+        </div>
+
+        <div className="sd-actions">
+          <button
+            type="button"
+            className="icon-btn icon-btn--outlined"
+            style={{ height: '24px', fontSize: '11px', padding: '0 7px' }}
+            onClick={handleAddSecondaryTable}
+            title="Створити нову пов’язану таблицю"
+          >
+            <Plus size={12} />
+            <span>Таблиця</span>
+          </button>
+          <button
+            type="button"
+            className="icon-btn icon-btn--outlined"
+            style={{ height: '24px', fontSize: '11px', padding: '0 7px' }}
+            onClick={() => secondaryFileRef.current?.click()}
+            title="Імпортувати TXT як додаткову таблицю для Join"
+          >
+            <FileUp size={12} />
+            <span>+TXT</span>
+          </button>
+          <button
+            type="button"
+            className={`icon-btn icon-btn--outlined ${(state.project.joins?.length ?? 0) > 0 ? 'icon-btn--active' : ''}`}
+            style={{ height: '24px', fontSize: '11px', padding: '0 7px' }}
+            onClick={() => setIsJoinsOpen(true)}
+            title="Налаштувати з’єднання таблиць (Joins)"
+          >
+            <GitMerge size={12} />
+            <span>
+              Joins{(state.project.joins?.length ?? 0) > 0 ? ` (${state.project.joins!.length})` : ''}
+            </span>
+          </button>
+        </div>
+      </div>
+
+      {secondaryImportError && (
+        <div className="sd-formula-error" role="alert">
+          {secondaryImportError}
+        </div>
+      )}
+
       <div className="sd-toolbar">
         <div className="sd-meta">
           <input
@@ -117,7 +272,7 @@ export function SourceDataGrid({ onRequestImportTxt }: SourceDataGridProps) {
             onBlur={(e) => {
               const next = e.target.value.trim();
               if (next && next !== dataset.name) {
-                dispatch({ type: 'RENAME_DATASET', name: next });
+                dispatch({ type: 'RENAME_DATASET', datasetId: dataset.id, name: next });
               } else {
                 e.target.value = dataset.name;
               }
@@ -150,7 +305,7 @@ export function SourceDataGrid({ onRequestImportTxt }: SourceDataGridProps) {
             type="button"
             className="icon-btn icon-btn--outlined"
             disabled={dataset.columns.length === 0}
-            onClick={() => dispatch({ type: 'ADD_ROW' })}
+            onClick={() => dispatch({ type: 'ADD_ROW', datasetId: dataset.id })}
           >
             <Plus size={13} />
             <span>{uk.sourceData.addRow}</span>
@@ -159,31 +314,120 @@ export function SourceDataGrid({ onRequestImportTxt }: SourceDataGridProps) {
       </div>
 
       {isAddingCol && (
-        <form className="sd-add-col-bar" onSubmit={handleCreateColumn}>
+        <form className="sd-add-col-bar" style={{ flexDirection: 'column', alignItems: 'stretch' }} onSubmit={handleCreateColumn}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <input
+              type="text"
+              className="sd-input"
+              placeholder={uk.sourceData.newColumnNamePlaceholder}
+              value={newColName}
+              onChange={(e) => setNewColName(e.target.value)}
+              autoFocus
+            />
+            <select
+              className="sd-select"
+              aria-label={uk.sourceData.columnTypeLabel}
+              value={newColType}
+              onChange={(e) => setNewColType(e.target.value as ColumnType)}
+            >
+              {SUPPORTED_COLUMN_TYPES.map((t) => (
+                <option key={t} value={t}>
+                  {uk.sourceData.types[t]}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              className={`icon-btn icon-btn--outlined ${newColUseFormula ? 'icon-btn--active' : ''}`}
+              style={{ height: '26px', padding: '0 7px', fontSize: '11px' }}
+              onClick={() => setNewColUseFormula((prev) => !prev)}
+              title="Зробити обчислюваною колонкою з формулою (fx)"
+            >
+              <FunctionSquare size={12} />
+              <span>fx</span>
+            </button>
+            <button
+              type="submit"
+              className="btn btn--primary"
+              style={{ height: '26px' }}
+              disabled={Boolean(newColUseFormula && newFormulaCheck && !newFormulaCheck.valid)}
+            >
+              {uk.sourceData.createColumnConfirm}
+            </button>
+          </div>
+          {newColUseFormula && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <input
+                type="text"
+                className="sd-input sd-cell-input--mono"
+                placeholder='Формула: [amount] * 1.2 або IF([quantity]>=5, "Опт", "Роздріб")'
+                value={newColFormula}
+                onChange={(e) => setNewColFormula(e.target.value)}
+              />
+              {newFormulaCheck && !newFormulaCheck.valid && newColFormula.trim() !== '' && (
+                <span className="sd-formula-error">{newFormulaCheck.error}</span>
+              )}
+            </div>
+          )}
+        </form>
+      )}
+
+      {editingFormulaColId && (
+        <div className="sd-add-col-bar" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+            <span className="placeholder-hint">
+              Формула для:{' '}
+              <strong>
+                {dataset.columns.find((c) => c.id === editingFormulaColId)?.name ?? ''}
+              </strong>
+            </span>
+            <div style={{ display: 'flex', gap: '4px' }}>
+              <button
+                type="button"
+                className="btn btn--secondary"
+                style={{ height: '24px', fontSize: '11px', padding: '0 8px' }}
+                onClick={() => {
+                  dispatch({
+                    type: 'SET_COLUMN_FORMULA',
+                    datasetId: dataset.id,
+                    columnId: editingFormulaColId,
+                    formula: undefined,
+                  });
+                  setEditingFormulaColId(null);
+                }}
+              >
+                Зробити звичайною
+              </button>
+              <button
+                type="button"
+                className="btn btn--primary"
+                style={{ height: '24px', fontSize: '11px', padding: '0 8px' }}
+                disabled={Boolean(editFormulaValidation && !editFormulaValidation.valid)}
+                onClick={() => {
+                  dispatch({
+                    type: 'SET_COLUMN_FORMULA',
+                    datasetId: dataset.id,
+                    columnId: editingFormulaColId,
+                    formula: formulaDraft,
+                  });
+                  setEditingFormulaColId(null);
+                }}
+              >
+                Застосувати fx
+              </button>
+            </div>
+          </div>
           <input
             type="text"
-            className="sd-input"
-            placeholder={uk.sourceData.newColumnNamePlaceholder}
-            value={newColName}
-            onChange={(e) => setNewColName(e.target.value)}
-            autoFocus
+            className="sd-input sd-cell-input--mono"
+            placeholder='Напр.: ROUND([amount] / [quantity], 2) або YEAR([date])'
+            value={formulaDraft}
+            onChange={(e) => setFormulaDraft(e.target.value)}
           />
-          <select
-            className="sd-select"
-            aria-label={uk.sourceData.columnTypeLabel}
-            value={newColType}
-            onChange={(e) => setNewColType(e.target.value as ColumnType)}
-          >
-            {SUPPORTED_COLUMN_TYPES.map((t) => (
-              <option key={t} value={t}>
-                {uk.sourceData.types[t]}
-              </option>
-            ))}
-          </select>
-          <button type="submit" className="btn btn--primary" style={{ height: '26px' }}>
-            {uk.sourceData.createColumnConfirm}
-          </button>
-        </form>
+          {editFormulaValidation && !editFormulaValidation.valid && formulaDraft.trim() !== '' && (
+            <span className="sd-formula-error">{editFormulaValidation.error}</span>
+          )}
+        </div>
       )}
 
       {dataset.columns.length === 0 ? (
@@ -238,7 +482,7 @@ export function SourceDataGrid({ onRequestImportTxt }: SourceDataGridProps) {
                         onBlur={(e) => {
                           const next = e.target.value.trim();
                           if (next && next !== col.name) {
-                            dispatch({ type: 'RENAME_COLUMN', columnId: col.id, name: next });
+                            dispatch({ type: 'RENAME_COLUMN', datasetId: dataset.id, columnId: col.id, name: next });
                           } else {
                             e.target.value = col.name;
                           }
@@ -261,6 +505,7 @@ export function SourceDataGrid({ onRequestImportTxt }: SourceDataGridProps) {
                           onChange={(e) =>
                             dispatch({
                               type: 'CHANGE_COLUMN_TYPE',
+                              datasetId: dataset.id,
                               columnId: col.id,
                               columnType: e.target.value as ColumnType,
                             })
@@ -276,11 +521,24 @@ export function SourceDataGrid({ onRequestImportTxt }: SourceDataGridProps) {
                         <div className="sd-col-btns">
                           <button
                             type="button"
+                            className={`sd-mini-btn ${col.formula ? 'sd-fx-btn--active' : ''}`}
+                            onClick={() => {
+                              setEditingFormulaColId(col.id);
+                              setFormulaDraft(col.formula ?? '');
+                            }}
+                            aria-label={`Формула для ${col.name}`}
+                            title={col.formula ? `fx: ${col.formula}` : 'Додати формулу (fx)'}
+                          >
+                            <FunctionSquare size={11} />
+                          </button>
+                          <button
+                            type="button"
                             className="sd-mini-btn"
                             disabled={colIndex === 0}
                             onClick={() =>
                               dispatch({
                                 type: 'REORDER_COLUMN',
+                                datasetId: dataset.id,
                                 columnId: col.id,
                                 targetIndex: colIndex - 1,
                               })
@@ -297,6 +555,7 @@ export function SourceDataGrid({ onRequestImportTxt }: SourceDataGridProps) {
                             onClick={() =>
                               dispatch({
                                 type: 'REORDER_COLUMN',
+                                datasetId: dataset.id,
                                 columnId: col.id,
                                 targetIndex: colIndex + 1,
                               })
@@ -340,16 +599,36 @@ export function SourceDataGrid({ onRequestImportTxt }: SourceDataGridProps) {
             </thead>
 
             <tbody>
-              {dataset.rows.map((row, rowIndex) => (
+              {evaluatedDataset.rows.map((row, rowIndex) => (
                 <tr key={row.id}>
                   <td className="sd-td-index">{rowIndex + 1}</td>
-                  {dataset.columns.map((col) => {
+                  {evaluatedDataset.columns.map((col) => {
                     const rawValue = row.values[col.id];
                     const stringValue = cellValueToInputString(rawValue);
                     const validation = validateCellValue(rawValue, col.type);
                     const errorTooltip = validation.errorKey
                       ? uk.sourceData.validationErrors[validation.errorKey]
                       : undefined;
+
+                    if (col.formula) {
+                      return (
+                        <td
+                          key={col.id}
+                          className="sd-td sd-cell-formula-td"
+                          title={`fx: ${col.formula}`}
+                        >
+                          <span
+                            className={`sd-cell-formula ${
+                              col.type === 'number' || col.type === 'date'
+                                ? 'sd-cell-input--mono'
+                                : ''
+                            } ${col.type === 'number' ? 'sd-cell-input--number' : ''}`}
+                          >
+                            {stringValue || '—'}
+                          </span>
+                        </td>
+                      );
+                    }
 
                     return (
                       <td key={col.id} className="sd-td">
@@ -363,6 +642,7 @@ export function SourceDataGrid({ onRequestImportTxt }: SourceDataGridProps) {
                             onChange={(e) =>
                               dispatch({
                                 type: 'UPDATE_CELL',
+                                datasetId: dataset.id,
                                 rowId: row.id,
                                 columnId: col.id,
                                 value: e.target.value === '' ? null : e.target.value,
@@ -391,6 +671,7 @@ export function SourceDataGrid({ onRequestImportTxt }: SourceDataGridProps) {
                             onChange={(e) =>
                               dispatch({
                                 type: 'UPDATE_CELL',
+                                datasetId: dataset.id,
                                 rowId: row.id,
                                 columnId: col.id,
                                 value: e.target.value === '' ? null : e.target.value,
@@ -405,7 +686,9 @@ export function SourceDataGrid({ onRequestImportTxt }: SourceDataGridProps) {
                     <button
                       type="button"
                       className="sd-mini-btn sd-mini-btn--danger"
-                      onClick={() => dispatch({ type: 'DELETE_ROW', rowId: row.id })}
+                      onClick={() =>
+                        dispatch({ type: 'DELETE_ROW', datasetId: dataset.id, rowId: row.id })
+                      }
                       aria-label={`${uk.sourceData.deleteRow} ${rowIndex + 1}`}
                       title={uk.sourceData.deleteRow}
                     >
@@ -423,7 +706,7 @@ export function SourceDataGrid({ onRequestImportTxt }: SourceDataGridProps) {
               <button
                 type="button"
                 className="btn btn--secondary"
-                onClick={() => dispatch({ type: 'ADD_ROW' })}
+                onClick={() => dispatch({ type: 'ADD_ROW', datasetId: dataset.id })}
               >
                 <Plus size={13} />
                 <span>{uk.sourceData.addRow}</span>
@@ -433,7 +716,9 @@ export function SourceDataGrid({ onRequestImportTxt }: SourceDataGridProps) {
         </div>
       )}
 
-      <ActivityHeatmapPanel />
+      <ActivityHeatmapPanel dataset={evaluatedDataset} />
+
+      {isJoinsOpen && <JoinsModal onClose={() => setIsJoinsOpen(false)} />}
 
       {pendingDelete && (
         <Modal

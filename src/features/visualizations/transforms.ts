@@ -14,6 +14,12 @@ import type {
   StackedBarElementConfig,
   TableViewElementConfig,
 } from '../../domain/models';
+import {
+  getAllProjectDatasets,
+  getJoinDatasetId,
+  getJoinedColumnId,
+} from '../source-data/dataPipeline';
+import { extractFormulaColumnRefs } from '../source-data/formulaEngine';
 import { isEmptyCellValue, validateCellValue } from '../source-data/typeValidation';
 
 export type TransformErrorReason =
@@ -1314,7 +1320,7 @@ export function computeActivityHeatmap(
 
 export interface ProjectGraphNode {
   id: string;
-  kind: 'project' | 'page' | 'element';
+  kind: 'project' | 'page' | 'element' | 'dataset' | 'column' | 'join' | 'filter';
   label: string;
   pageId?: string;
   elementId?: string;
@@ -1323,7 +1329,7 @@ export interface ProjectGraphNode {
 export interface ProjectGraphEdge {
   source: string;
   target: string;
-  kind: 'hierarchy' | 'link';
+  kind: 'hierarchy' | 'link' | 'lineage';
   label?: string;
 }
 
@@ -1334,11 +1340,49 @@ export interface ProjectGraphResult {
   brokenLinkCount: number;
 }
 
+function collectElementFieldIds(config: Record<string, unknown>): string[] {
+  const refs: string[] = [];
+  const singleKeys = [
+    'valueFieldId',
+    'sparklineOrderFieldId',
+    'xFieldId',
+    'yFieldId',
+    'groupByFieldId',
+    'titleFieldId',
+    'categoryFieldId',
+    'seriesFieldId',
+    'labelFieldId',
+    'rowFieldId',
+    'colFieldId',
+  ];
+  for (const key of singleKeys) {
+    const val = config[key];
+    if (typeof val === 'string' && val.trim() !== '') {
+      refs.push(val);
+    }
+  }
+  for (const listKey of ['columnIds', 'detailFieldIds']) {
+    const arr = config[listKey];
+    if (Array.isArray(arr)) {
+      for (const item of arr) {
+        if (typeof item === 'string' && item.trim() !== '') {
+          refs.push(item);
+        }
+      }
+    }
+  }
+  return Array.from(new Set(refs));
+}
+
 /**
- * Builds an Obsidian-style node/link graph of Project -> Canvas Pages -> Elements
- * plus user-defined internal links between pages and elements.
+ * Builds an Obsidian-style node/link graph of Project -> Canvas Pages -> Elements,
+ * internal links, and optionally full Data Lineage (datasets, joins, formulas, filters, columns).
  */
-export function computeProjectGraph(project: Project): ProjectGraphResult {
+export function computeProjectGraph(
+  project: Project,
+  options?: { includeDataLineage?: boolean },
+): ProjectGraphResult {
+  const includeLineage = Boolean(options?.includeDataLineage);
   const nodes: ProjectGraphNode[] = [];
   const edges: ProjectGraphEdge[] = [];
 
@@ -1351,6 +1395,83 @@ export function computeProjectGraph(project: Project): ProjectGraphResult {
 
   const pageNodeIds = new Set<string>();
   const elementPageMap = new Map<string, string>();
+  const colNodeById = new Map<string, string>();
+
+  if (includeLineage) {
+    const allDatasets = getAllProjectDatasets(project);
+    for (const ds of allDatasets) {
+      const dsNodeId = `ds:${ds.id}`;
+      nodes.push({ id: dsNodeId, kind: 'dataset', label: ds.name });
+      edges.push({ source: projectNodeId, target: dsNodeId, kind: 'lineage', label: 'таблиця' });
+
+      for (const col of ds.columns) {
+        const cNodeId = `col:${ds.id}:${col.id}`;
+        colNodeById.set(col.id, cNodeId);
+        nodes.push({
+          id: cNodeId,
+          kind: 'column',
+          label: col.formula ? `fx ${col.name}` : col.name,
+        });
+        edges.push({ source: dsNodeId, target: cNodeId, kind: 'lineage' });
+      }
+    }
+
+    // Formula dependencies between columns
+    for (const ds of allDatasets) {
+      for (const col of ds.columns) {
+        if (!col.formula) continue;
+        const targetColNode = colNodeById.get(col.id);
+        if (!targetColNode) continue;
+        const depIds = extractFormulaColumnRefs(col.formula, ds.columns);
+        for (const depId of depIds) {
+          const srcColNode = colNodeById.get(depId);
+          if (srcColNode && srcColNode !== targetColNode) {
+            edges.push({
+              source: srcColNode,
+              target: targetColNode,
+              kind: 'lineage',
+              label: 'формула',
+            });
+          }
+        }
+      }
+    }
+
+    // Joins lineage
+    for (const join of project.joins ?? []) {
+      const jNodeId = `join:${join.id}`;
+      nodes.push({ id: jNodeId, kind: 'join', label: `⋈ ${join.name}` });
+      edges.push({
+        source: `ds:${join.leftDatasetId}`,
+        target: jNodeId,
+        kind: 'lineage',
+        label: join.joinType,
+      });
+      edges.push({
+        source: `ds:${join.rightDatasetId}`,
+        target: jNodeId,
+        kind: 'lineage',
+        label: join.joinType,
+      });
+      const rDs = allDatasets.find((d) => d.id === join.rightDatasetId);
+      for (const rCol of rDs?.columns ?? []) {
+        const mappedId = getJoinedColumnId(join.id, rCol.id);
+        colNodeById.set(mappedId, jNodeId);
+      }
+    }
+
+    // Reusable Filters lineage
+    for (const flt of project.filters ?? []) {
+      const fNodeId = `flt:${flt.id}`;
+      nodes.push({ id: fNodeId, kind: 'filter', label: `Фільтр: ${flt.name}` });
+      for (const rule of flt.rules) {
+        const cNode = colNodeById.get(rule.columnId);
+        if (cNode) {
+          edges.push({ source: cNode, target: fNodeId, kind: 'lineage', label: 'фільтрує' });
+        }
+      }
+    }
+  }
 
   for (const page of project.canvases) {
     const pNodeId = `page:${page.id}`;
@@ -1367,6 +1488,14 @@ export function computeProjectGraph(project: Project): ProjectGraphResult {
       kind: 'hierarchy',
     });
 
+    if (includeLineage && page.filterIds) {
+      for (const fId of page.filterIds) {
+        if ((project.filters ?? []).some((f) => f.id === fId)) {
+          edges.push({ source: `flt:${fId}`, target: pNodeId, kind: 'lineage', label: 'сторінка' });
+        }
+      }
+    }
+
     for (const el of page.elements) {
       const elNodeId = `el:${el.id}`;
       elementPageMap.set(el.id, page.id);
@@ -1382,6 +1511,29 @@ export function computeProjectGraph(project: Project): ProjectGraphResult {
         target: elNodeId,
         kind: 'hierarchy',
       });
+
+      if (includeLineage) {
+        const fieldIds = collectElementFieldIds(el.config as unknown as Record<string, unknown>);
+        for (const fid of fieldIds) {
+          const srcNode = colNodeById.get(fid);
+          if (srcNode) {
+            edges.push({ source: srcNode, target: elNodeId, kind: 'lineage' });
+          }
+        }
+        if (el.datasetId && el.datasetId.startsWith('join:')) {
+          const jId = el.datasetId.slice('join:'.length);
+          if ((project.joins ?? []).some((j) => getJoinDatasetId(j.id) === el.datasetId)) {
+            edges.push({ source: `join:${jId}`, target: elNodeId, kind: 'lineage' });
+          }
+        }
+        if (el.filterIds) {
+          for (const fId of el.filterIds) {
+            if ((project.filters ?? []).some((f) => f.id === fId)) {
+              edges.push({ source: `flt:${fId}`, target: elNodeId, kind: 'lineage', label: 'фільтр' });
+            }
+          }
+        }
+      }
     }
   }
 

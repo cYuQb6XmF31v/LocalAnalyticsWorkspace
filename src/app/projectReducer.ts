@@ -6,9 +6,12 @@ import type {
   CellValue,
   ColumnType,
   Dataset,
+  DatasetJoin,
   ElementLink,
   Position,
   Project,
+  ProjectFilter,
+  SavedCanvasTemplate,
   Size,
   Viewport,
   WorkspaceState,
@@ -22,11 +25,12 @@ import {
   deleteRow,
   renameColumn,
   reorderColumn,
+  setColumnFormula,
   updateCell,
   type AddColumnInput,
 } from '../features/source-data/datasetOps';
 
-export const CURRENT_FORMAT_VERSION = 1;
+export const CURRENT_FORMAT_VERSION = 2;
 
 export function createEmptyProject(
   projectName = 'Новий проєкт',
@@ -66,16 +70,30 @@ export function createInitialWorkspaceState(project: Project = createEmptyProjec
 
 export type ProjectAction =
   | { type: 'RENAME_PROJECT'; name: string }
-  | { type: 'RENAME_DATASET'; name: string }
-  | { type: 'ADD_COLUMN'; input: AddColumnInput }
-  | { type: 'RENAME_COLUMN'; columnId: string; name: string }
-  | { type: 'CHANGE_COLUMN_TYPE'; columnId: string; columnType: ColumnType }
-  | { type: 'REORDER_COLUMN'; columnId: string; targetIndex: number }
-  | { type: 'DELETE_COLUMN'; columnId: string }
-  | { type: 'ADD_ROW'; initialValues?: Record<string, CellValue>; insertAt?: number }
-  | { type: 'UPDATE_CELL'; rowId: string; columnId: string; value: CellValue }
-  | { type: 'DELETE_ROW'; rowId: string }
+  | { type: 'RENAME_DATASET'; name: string; datasetId?: string }
+  | { type: 'ADD_COLUMN'; input: AddColumnInput; datasetId?: string }
+  | { type: 'RENAME_COLUMN'; columnId: string; name: string; datasetId?: string }
+  | { type: 'CHANGE_COLUMN_TYPE'; columnId: string; columnType: ColumnType; datasetId?: string }
+  | { type: 'SET_COLUMN_FORMULA'; columnId: string; formula?: string; datasetId?: string }
+  | { type: 'REORDER_COLUMN'; columnId: string; targetIndex: number; datasetId?: string }
+  | { type: 'DELETE_COLUMN'; columnId: string; datasetId?: string }
+  | { type: 'ADD_ROW'; initialValues?: Record<string, CellValue>; insertAt?: number; datasetId?: string }
+  | { type: 'UPDATE_CELL'; rowId: string; columnId: string; value: CellValue; datasetId?: string }
+  | { type: 'DELETE_ROW'; rowId: string; datasetId?: string }
   | { type: 'REPLACE_DATASET'; dataset: Dataset; openLayoutChooser?: boolean }
+  | { type: 'ADD_SECONDARY_DATASET'; dataset: Dataset }
+  | { type: 'DELETE_SECONDARY_DATASET'; datasetId: string }
+  | { type: 'ADD_JOIN'; join: DatasetJoin }
+  | { type: 'UPDATE_JOIN'; join: DatasetJoin }
+  | { type: 'DELETE_JOIN'; joinId: string }
+  | { type: 'ADD_FILTER'; filter: ProjectFilter }
+  | { type: 'UPDATE_FILTER'; filter: ProjectFilter }
+  | { type: 'DELETE_FILTER'; filterId: string }
+  | { type: 'SET_PAGE_FILTERS'; pageId: string; filterIds: string[] }
+  | { type: 'SET_ELEMENT_DATASET'; pageId: string; elementId: string; datasetId?: string }
+  | { type: 'SET_ELEMENT_FILTERS'; pageId: string; elementId: string; filterIds: string[] }
+  | { type: 'SAVE_CUSTOM_TEMPLATE'; template: SavedCanvasTemplate }
+  | { type: 'DELETE_CUSTOM_TEMPLATE'; templateId: string }
   | { type: 'ADD_PAGE'; name: string; activate?: boolean }
   | { type: 'RENAME_PAGE'; pageId: string; name: string }
   | { type: 'DELETE_PAGE'; pageId: string }
@@ -111,6 +129,43 @@ function updateDatasetOnProject(
     project: {
       ...state.project,
       primaryDataset: nextDataset,
+      metadata: {
+        ...state.project.metadata,
+        updatedAt: new Date().toISOString(),
+      },
+    },
+    dirtySinceLastExport: true,
+  };
+}
+
+function updateTargetDataset(
+  state: WorkspaceState,
+  datasetId: string | undefined,
+  updater: (ds: Dataset) => Dataset,
+): WorkspaceState {
+  if (!datasetId || datasetId === state.project.primaryDataset.id) {
+    return updateDatasetOnProject(state, updater(state.project.primaryDataset));
+  }
+  const secondaries = state.project.secondaryDatasets ?? [];
+  let changed = false;
+  const nextSecondaries = secondaries.map((ds) => {
+    if (ds.id !== datasetId) {
+      return ds;
+    }
+    const updated = updater(ds);
+    if (updated !== ds) {
+      changed = true;
+    }
+    return updated;
+  });
+  if (!changed) {
+    return state;
+  }
+  return {
+    ...state,
+    project: {
+      ...state.project,
+      secondaryDatasets: nextSecondaries,
       metadata: {
         ...state.project.metadata,
         updatedAt: new Date().toISOString(),
@@ -175,69 +230,243 @@ export function projectReducer(state: WorkspaceState, action: ProjectAction): Wo
 
     case 'RENAME_DATASET': {
       const trimmed = action.name.trim();
-      if (!trimmed || trimmed === state.project.primaryDataset.name) {
+      if (!trimmed) {
         return state;
       }
-      return updateDatasetOnProject(state, {
-        ...state.project.primaryDataset,
-        name: trimmed,
-      });
+      return updateTargetDataset(state, action.datasetId, (ds) =>
+        ds.name === trimmed ? ds : { ...ds, name: trimmed },
+      );
     }
 
     case 'ADD_COLUMN':
-      return updateDatasetOnProject(
-        state,
-        addColumn(state.project.primaryDataset, action.input),
-      );
+      return updateTargetDataset(state, action.datasetId, (ds) => addColumn(ds, action.input));
 
     case 'RENAME_COLUMN':
-      return updateDatasetOnProject(
-        state,
-        renameColumn(state.project.primaryDataset, action.columnId, action.name),
+      return updateTargetDataset(state, action.datasetId, (ds) =>
+        renameColumn(ds, action.columnId, action.name),
       );
 
     case 'CHANGE_COLUMN_TYPE':
-      return updateDatasetOnProject(
-        state,
-        changeColumnType(state.project.primaryDataset, action.columnId, action.columnType),
+      return updateTargetDataset(state, action.datasetId, (ds) =>
+        changeColumnType(ds, action.columnId, action.columnType),
+      );
+
+    case 'SET_COLUMN_FORMULA':
+      return updateTargetDataset(state, action.datasetId, (ds) =>
+        setColumnFormula(ds, action.columnId, action.formula),
       );
 
     case 'REORDER_COLUMN':
-      return updateDatasetOnProject(
-        state,
-        reorderColumn(state.project.primaryDataset, action.columnId, action.targetIndex),
+      return updateTargetDataset(state, action.datasetId, (ds) =>
+        reorderColumn(ds, action.columnId, action.targetIndex),
       );
 
     case 'DELETE_COLUMN':
       // Column deletion intentionally leaves existing element field references untouched
       // so visualizations report missing-column errors instead of silently remapping.
-      return updateDatasetOnProject(
-        state,
-        deleteColumn(state.project.primaryDataset, action.columnId),
+      return updateTargetDataset(state, action.datasetId, (ds) =>
+        deleteColumn(ds, action.columnId),
       );
 
     case 'ADD_ROW':
-      return updateDatasetOnProject(
-        state,
-        addRow(state.project.primaryDataset, action.initialValues, action.insertAt),
+      return updateTargetDataset(state, action.datasetId, (ds) =>
+        addRow(ds, action.initialValues, action.insertAt),
       );
 
     case 'UPDATE_CELL':
-      return updateDatasetOnProject(
-        state,
-        updateCell(state.project.primaryDataset, action.rowId, action.columnId, action.value),
+      return updateTargetDataset(state, action.datasetId, (ds) =>
+        updateCell(ds, action.rowId, action.columnId, action.value),
       );
 
     case 'DELETE_ROW':
-      return updateDatasetOnProject(
-        state,
-        deleteRow(state.project.primaryDataset, action.rowId),
+      return updateTargetDataset(state, action.datasetId, (ds) =>
+        deleteRow(ds, action.rowId),
       );
 
     case 'REPLACE_DATASET':
       return {
         ...updateDatasetOnProject(state, action.dataset),
         needsLayoutChooser: action.openLayoutChooser ?? state.needsLayoutChooser,
+      };
+
+    case 'ADD_SECONDARY_DATASET': {
+      const prev = state.project.secondaryDatasets ?? [];
+      return {
+        ...state,
+        project: {
+          ...state.project,
+          secondaryDatasets: [...prev, action.dataset],
+          metadata: { ...state.project.metadata, updatedAt: new Date().toISOString() },
+        },
+        dirtySinceLastExport: true,
+      };
+    }
+
+    case 'DELETE_SECONDARY_DATASET': {
+      const prev = state.project.secondaryDatasets ?? [];
+      const next = prev.filter((d) => d.id !== action.datasetId);
+      if (next.length === prev.length) {
+        return state;
+      }
+      const nextJoins = (state.project.joins ?? []).filter(
+        (j) => j.leftDatasetId !== action.datasetId && j.rightDatasetId !== action.datasetId,
+      );
+      return {
+        ...state,
+        project: {
+          ...state.project,
+          secondaryDatasets: next,
+          joins: nextJoins,
+          metadata: { ...state.project.metadata, updatedAt: new Date().toISOString() },
+        },
+        dirtySinceLastExport: true,
+      };
+    }
+
+    case 'ADD_JOIN':
+      return {
+        ...state,
+        project: {
+          ...state.project,
+          joins: [...(state.project.joins ?? []), action.join],
+          metadata: { ...state.project.metadata, updatedAt: new Date().toISOString() },
+        },
+        dirtySinceLastExport: true,
+      };
+
+    case 'UPDATE_JOIN':
+      return {
+        ...state,
+        project: {
+          ...state.project,
+          joins: (state.project.joins ?? []).map((j) =>
+            j.id === action.join.id ? action.join : j,
+          ),
+          metadata: { ...state.project.metadata, updatedAt: new Date().toISOString() },
+        },
+        dirtySinceLastExport: true,
+      };
+
+    case 'DELETE_JOIN':
+      return {
+        ...state,
+        project: {
+          ...state.project,
+          joins: (state.project.joins ?? []).filter((j) => j.id !== action.joinId),
+          metadata: { ...state.project.metadata, updatedAt: new Date().toISOString() },
+        },
+        dirtySinceLastExport: true,
+      };
+
+    case 'ADD_FILTER':
+      return {
+        ...state,
+        project: {
+          ...state.project,
+          filters: [...(state.project.filters ?? []), action.filter],
+          metadata: { ...state.project.metadata, updatedAt: new Date().toISOString() },
+        },
+        dirtySinceLastExport: true,
+      };
+
+    case 'UPDATE_FILTER':
+      return {
+        ...state,
+        project: {
+          ...state.project,
+          filters: (state.project.filters ?? []).map((f) =>
+            f.id === action.filter.id ? action.filter : f,
+          ),
+          metadata: { ...state.project.metadata, updatedAt: new Date().toISOString() },
+        },
+        dirtySinceLastExport: true,
+      };
+
+    case 'DELETE_FILTER': {
+      const nextFilters = (state.project.filters ?? []).filter((f) => f.id !== action.filterId);
+      const nextCanvases = state.project.canvases.map((page) => ({
+        ...page,
+        ...(page.filterIds
+          ? { filterIds: page.filterIds.filter((id) => id !== action.filterId) }
+          : {}),
+        elements: page.elements.map((el) =>
+          el.filterIds
+            ? ({
+                ...el,
+                filterIds: el.filterIds.filter((id) => id !== action.filterId),
+              } as CanvasElement)
+            : el,
+        ),
+      }));
+      return {
+        ...state,
+        project: {
+          ...state.project,
+          filters: nextFilters,
+          canvases: nextCanvases,
+          metadata: { ...state.project.metadata, updatedAt: new Date().toISOString() },
+        },
+        dirtySinceLastExport: true,
+      };
+    }
+
+    case 'SET_PAGE_FILTERS':
+      return updatePageInProject(state, action.pageId, (page) => {
+        if (action.filterIds.length === 0) {
+          const { filterIds: _removed, ...rest } = page;
+          return rest;
+        }
+        return { ...page, filterIds: action.filterIds };
+      });
+
+    case 'SET_ELEMENT_DATASET':
+      return updatePageInProject(state, action.pageId, (page) => ({
+        ...page,
+        elements: page.elements.map((el) => {
+          if (el.id !== action.elementId) return el;
+          if (!action.datasetId || action.datasetId === state.project.primaryDataset.id) {
+            const { datasetId: _removed, ...rest } = el;
+            return rest as CanvasElement;
+          }
+          return { ...el, datasetId: action.datasetId } as CanvasElement;
+        }),
+      }));
+
+    case 'SET_ELEMENT_FILTERS':
+      return updatePageInProject(state, action.pageId, (page) => ({
+        ...page,
+        elements: page.elements.map((el) => {
+          if (el.id !== action.elementId) return el;
+          if (action.filterIds.length === 0) {
+            const { filterIds: _removed, ...rest } = el;
+            return rest as CanvasElement;
+          }
+          return { ...el, filterIds: action.filterIds } as CanvasElement;
+        }),
+      }));
+
+    case 'SAVE_CUSTOM_TEMPLATE':
+      return {
+        ...state,
+        project: {
+          ...state.project,
+          savedTemplates: [...(state.project.savedTemplates ?? []), action.template],
+          metadata: { ...state.project.metadata, updatedAt: new Date().toISOString() },
+        },
+        dirtySinceLastExport: true,
+      };
+
+    case 'DELETE_CUSTOM_TEMPLATE':
+      return {
+        ...state,
+        project: {
+          ...state.project,
+          savedTemplates: (state.project.savedTemplates ?? []).filter(
+            (t) => t.id !== action.templateId,
+          ),
+          metadata: { ...state.project.metadata, updatedAt: new Date().toISOString() },
+        },
+        dirtySinceLastExport: true,
       };
 
     case 'ADD_PAGE': {

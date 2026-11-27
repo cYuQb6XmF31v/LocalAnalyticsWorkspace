@@ -8,7 +8,8 @@ export type CanvasTemplateId =
   | 'categories'
   | 'operations'
   | 'distribution'
-  | 'executive';
+  | 'executive'
+  | 'analytics_suite';
 
 export interface CanvasTemplateDefinition {
   id: CanvasTemplateId;
@@ -57,6 +58,12 @@ export const CANVAS_TEMPLATES: readonly CanvasTemplateDefinition[] = [
     title: 'Мульти-сторінковий звіт (2 сторінки)',
     description:
       'Дві готові сторінки: "Загальний огляд" з KPI та графіками і "Детальний аналіз" зі зведеною таблицею.',
+  },
+  {
+    id: 'analytics_suite',
+    title: 'BI-комплекс (3 сторінки + контроль якості)',
+    description:
+      'Повний набір: «Зведення» з KPI, «Аналіз за категоріями» (Donut + Зведена) та «Контроль якості даних».',
   },
 ];
 
@@ -440,6 +447,64 @@ export function buildPagesFromTemplate(
         ],
       },
     ];
+  }
+
+  if (templateId === 'analytics_suite') {
+    const overviewPage = buildPagesFromTemplate('overview', dataset)[0];
+    overviewPage.name = 'Зведення';
+    const categoriesPage = buildPagesFromTemplate('categories', dataset)[0];
+    categoriesPage.name = 'Аналіз категорій';
+    const qualityPage: CanvasPage = {
+      id: createStableId('page'),
+      name: 'Контроль якості даних',
+      viewport: { x: 0, y: 0, zoom: 1 },
+      elements: [
+        {
+          id: createStableId('el'),
+          type: 'note',
+          position: { x: 40, y: 40 },
+          size: { width: 320, height: 150 },
+          config: {
+            title: 'Контроль якості Source Data',
+            content: `Таблиця "${dataset.name}": ${dataset.columns.length} колонок, ${dataset.rows.length} записів. Перевірте розподіл значень та повноту таблиці нижче.`,
+          },
+        },
+        {
+          id: createStableId('el'),
+          type: 'kpi',
+          position: { x: 380, y: 40 },
+          size: { width: 220, height: 150 },
+          config: {
+            title: 'Усього записів',
+            valueFieldId: dataset.columns[0]?.id ?? null,
+            aggregation: 'count',
+          },
+        },
+        {
+          id: createStableId('el'),
+          type: 'histogram',
+          position: { x: 40, y: 215 },
+          size: { width: 420, height: 270 },
+          config: {
+            title: primaryNum ? `Розподіл: ${primaryNum.name}` : 'Частотний розподіл',
+            valueFieldId: primaryNum?.id ?? null,
+            binCount: 8,
+          },
+        },
+        {
+          id: createStableId('el'),
+          type: 'table-view',
+          position: { x: 480, y: 215 },
+          size: { width: 460, height: 270 },
+          config: {
+            title: 'Повний зріз рядків',
+            columnIds: allColIds.slice(0, 8),
+            maxRows: 50,
+          },
+        },
+      ],
+    };
+    return [overviewPage, categoriesPage, qualityPage];
   }
 
   // trends
