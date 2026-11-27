@@ -74,16 +74,22 @@ export function EChartHeatmapBox({
         animationDuration: 180,
         backgroundColor: 'transparent',
         tooltip: {
-          position: 'top',
-          backgroundColor: '#171a22',
+          trigger: 'item',
+          appendToBody: true,
+          confine: false,
+          backgroundColor: '#17191f',
           borderColor: 'rgba(255, 255, 255, 0.14)',
-          textStyle: { color: '#eceef4', fontSize: 11 },
+          borderWidth: 1,
+          padding: [6, 10],
+          extraCssText:
+            'z-index: 9999; pointer-events: none; border-radius: 6px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5); font-family: var(--font-sans);',
+          textStyle: { color: '#eceef2', fontSize: 12 },
           formatter: (params: unknown) => {
             const p = params as { value?: [string, number] };
             if (!p.value) {
               return '';
             }
-            return `${p.value[0]} (${columnName}): <b>${p.value[1]}</b>`;
+            return `<span style="font-family: var(--font-mono); color: #9ba1b0;">${p.value[0]}</span> · ${columnName}: <b style="color: #fff;">${p.value[1]}</b>`;
           },
         },
         visualMap: {
